@@ -209,4 +209,4 @@ The controller script `/usr/libexec/guardian-action.sh` supports the following a
 
 Licensed under the **Apache License 2.0**. See [LICENSE](LICENSE) for details.
 
-Developed with ?? for the OpenWrt & ImmortalWrt communities.
+Developed with ❤️ for the OpenWrt & ImmortalWrt communities.
