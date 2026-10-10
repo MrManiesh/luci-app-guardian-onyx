@@ -138,38 +138,18 @@ function assessClientRisk(client) {
     };
 }
 
-// Determine if AdGuard query was blocked
-function isQueryBlocked(q) {
-    if (!q) return false;
-    var reason = (q.reason || '').toLowerCase();
-    var status = (q.status || '').toUpperCase();
-    if (reason.indexOf('filtered') !== -1 || reason.indexOf('safebrowsing') !== -1 ||
-        reason.indexOf('parental') !== -1 || reason.indexOf('blocked') !== -1) {
-        return true;
-    }
-    if (status === 'REFUSED' || status === 'NXDOMAIN_BLOCKED') {
-        return true;
-    }
-    return false;
-}
-
 return view.extend({
-    activeTab: 'dashboard',
+    activeTab: 'adguard',
     pollTimer: null,
     statusData: {},
-    adguardLog: [],
-    adguardFilters: [],
     firewallZones: [],
     firewallRules: null,
     connectedClients: [],
     conntrackCount: 0,
     uciGuardian: {},
     uciFirewall: {},
-    querySearchTerm: '',
-    queryStatusFilter: 'all',
     clientSearchTerm: '',
     isTogglingProtection: false,
-    isRefreshingFilters: false,
     isReloadingFirewall: false,
     isScanningClients: false,
     isTestingConnection: false,
@@ -178,14 +158,12 @@ return view.extend({
     load: function() {
         return Promise.all([
             L.resolveDefault(fs.exec(ACTION_SCRIPT, ['status']), null),
-            L.resolveDefault(fs.exec(ACTION_SCRIPT, ['adguard_log']), null),
-            L.resolveDefault(fs.exec(ACTION_SCRIPT, ['adguard_filters']), null),
+            L.resolveDefault(fs.exec(ACTION_SCRIPT, ['adguard_stats']), null),
             L.resolveDefault(fs.exec(ACTION_SCRIPT, ['firewall_zones']), null),
             L.resolveDefault(fs.exec(ACTION_SCRIPT, ['clients']), null),
             L.resolveDefault(fs.read('/proc/sys/net/netfilter/nf_conntrack_count'), null),
             uci.load('guardian').catch(function() { return {}; }),
-            uci.load('firewall').catch(function() { return {}; }),
-            L.resolveDefault(fs.exec(ACTION_SCRIPT, ['adguard_stats']), null)
+            uci.load('firewall').catch(function() { return {}; })
         ]);
     },
 
@@ -227,35 +205,25 @@ return view.extend({
         }
     },
 
-    // Refresh Dashboard Data in Background (Every 10s)
-    refreshDashboardData: function() {
+    // Refresh Data in Background (Every 10s)
+    refreshData: function() {
         var self = this;
         return Promise.all([
             L.resolveDefault(fs.exec(ACTION_SCRIPT, ['status']), null),
-            L.resolveDefault(fs.exec(ACTION_SCRIPT, ['adguard_log']), null),
             L.resolveDefault(fs.exec(ACTION_SCRIPT, ['adguard_stats']), null)
         ]).then(function(results) {
             if (results[0] && results[0].stdout) {
                 self.statusData = safeJson(results[0].stdout, self.statusData);
             }
             if (results[1] && results[1].stdout) {
-                var logJson = safeJson(results[1].stdout, {});
-                self.adguardLog = logJson.data || [];
-            }
-            if (results[2] && results[2].stdout) {
-                self.adguardStatsDirect = safeJson(results[2].stdout, {});
+                self.adguardStatsDirect = safeJson(results[1].stdout, {});
                 if (self.statusData && self.statusData.adguard) {
                     if (!self.statusData.adguard.stats || !self.statusData.adguard.stats.num_dns_queries) {
                         self.statusData.adguard.stats = self.adguardStatsDirect;
                     }
                 }
             }
-            if (self.activeTab === 'dashboard') {
-                var dashPane = document.getElementById('gn-pane-dashboard');
-                if (dashPane) {
-                    self.renderDashboardPane(dashPane);
-                }
-            } else if (self.activeTab === 'adguard') {
+            if (self.activeTab === 'adguard') {
                 var agPane = document.getElementById('gn-pane-adguard');
                 if (agPane) {
                     self.renderAdGuardPane(agPane);
@@ -269,50 +237,31 @@ return view.extend({
         var self = this;
         if (self.isTogglingProtection) return;
         self.isTogglingProtection = true;
-        if (btnEl) btnEl.disabled = true;
+        if (btnEl) {
+            btnEl.disabled = true;
+            btnEl.innerHTML = '<span>⏳</span> ' + _('Updating...');
+        }
 
-        fs.exec(ACTION_SCRIPT, ['adguard_toggle']).then(function() {
-            ui.addNotification(null, E('p', {}, _('AdGuard Home protection state toggled successfully.')), 3000);
-            return self.refreshDashboardData();
+        fs.exec(ACTION_SCRIPT, ['adguard_toggle']).then(function(res) {
+            var raw = res && res.stdout ? res.stdout.trim() : '';
+            var json = safeJson(raw, {});
+            if (json.protection_enabled !== undefined && self.statusData && self.statusData.adguard) {
+                self.statusData.adguard.protection_enabled = json.protection_enabled;
+            }
+            var isProt = (json.protection_enabled === true);
+            var notice = isProt ? _('AdGuard Protection STARTED. Filtering is now active.') :
+                                  _('AdGuard Protection PAUSED. All filtering is now stopped.');
+            ui.addNotification(null, E('p', {}, notice), 3500);
+            var agPane = document.getElementById('gn-pane-adguard');
+            if (agPane) {
+                self.renderAdGuardPane(agPane);
+            }
+            return self.refreshData();
         }).catch(function(err) {
             ui.addNotification(null, E('p', {}, _('Failed to toggle AdGuard protection: ') + (err.message || err)), 4000);
         }).finally(function() {
             self.isTogglingProtection = false;
             if (btnEl) btnEl.disabled = false;
-        });
-    },
-
-    // Action: Refresh AdGuard Filters
-    handleRefreshFilters: function(btnEl, container) {
-        var self = this;
-        if (self.isRefreshingFilters) return;
-        self.isRefreshingFilters = true;
-        if (btnEl) {
-            btnEl.disabled = true;
-            btnEl.innerHTML = '<span>?</span> ' + _('Refreshing...');
-        }
-
-        fs.exec(ACTION_SCRIPT, ['adguard_filter_refresh']).then(function() {
-            ui.addNotification(null, E('p', {}, _('AdGuard filters refresh triggered.')), 3000);
-            return fs.exec(ACTION_SCRIPT, ['adguard_filters']);
-        }).then(function(res) {
-            if (res && res.stdout) {
-                var fJson = safeJson(res.stdout, {});
-                self.adguardFilters = fJson.filters || [];
-            }
-            if (container) {
-                self.renderAdGuardPane(container);
-            }
-        }).catch(function(err) {
-            ui.addNotification(null, E('p', {}, _('Filter refresh failed: ') + (err.message || err)), 4000);
-        }).finally(function() {
-            self.isRefreshingFilters = false;
-            if (btnEl) {
-                btnEl.disabled = false;
-                btnEl.innerHTML = '';
-                btnEl.appendChild(svgIcon('refresh', 14));
-                btnEl.appendChild(document.createTextNode(' ' + _('Refresh Filters')));
-            }
         });
     },
 
@@ -394,232 +343,7 @@ return view.extend({
     },
 
     // =========================================================================
-    // TAB 1: DASHBOARD RENDERER
-    // =========================================================================
-    renderDashboardPane: function(container) {
-        var self = this;
-        container.innerHTML = '';
-
-        var ag = (self.statusData && self.statusData.adguard) || {};
-        var fw = (self.statusData && self.statusData.firewall) || {};
-        var cl = (self.statusData && self.statusData.clients) || {};
-        var agStats = (ag.stats && Object.keys(ag.stats).length > 0) ? ag.stats : (self.adguardStatsDirect || {});
-
-        var isAgOnline = (ag.status === 'online') ||
-                         (self.adguardFilters && self.adguardFilters.length > 0) ||
-                         (self.adguardLog && self.adguardLog.length > 0) ||
-                         (agStats && agStats.num_dns_queries !== undefined && agStats.num_dns_queries > 0);
-        var isFwRunning = (fw.running === 1 || fw.running === true);
-        var clientCount = cl.count || self.connectedClients.length || 0;
-
-        var dnsTotal = agStats.num_dns_queries || 0;
-        var dnsBlocked = agStats.num_blocked_filtering || 0;
-        var safeBrowsingBlocked = agStats.num_replaced_safebrowsing || 0;
-        var parentalBlocked = agStats.num_replaced_parental || 0;
-        var avgLatencyMs = agStats.avg_processing_time ? (agStats.avg_processing_time * 1000).toFixed(1) : '--';
-        var blockedPctStr = fmtPct(dnsBlocked, dnsTotal);
-        var totalThreats = dnsBlocked + safeBrowsingBlocked + parentalBlocked;
-
-        // Top Controls Bar
-        var toggleBtn = E('button', {
-            'class': 'gn-btn ' + (isAgOnline ? 'gn-btn-warning' : 'gn-btn-primary'),
-            'style': 'display:inline-flex;align-items:center;gap:8px;'
-        }, [
-            svgIcon('power', 15),
-            E('span', {}, isAgOnline ? _('Toggle Protection') : _('Enable Protection'))
-        ]);
-        toggleBtn.addEventListener('click', function() { self.handleToggleProtection(toggleBtn); });
-
-        var refreshBtn = E('button', {
-            'class': 'gn-btn gn-btn-sec',
-            'style': 'display:inline-flex;align-items:center;gap:8px;'
-        }, [
-            svgIcon('refresh', 14),
-            E('span', {}, _('Refresh Data'))
-        ]);
-        refreshBtn.addEventListener('click', function() {
-            refreshBtn.classList.add('gn-spin');
-            self.refreshDashboardData().finally(function() {
-                refreshBtn.classList.remove('gn-spin');
-            });
-        });
-
-        var settingsQuickBtn = E('button', {
-            'class': 'gn-btn gn-btn-sec',
-            'style': 'display:inline-flex;align-items:center;gap:8px;'
-        }, [
-            svgIcon('settings', 14),
-            E('span', {}, _('Settings'))
-        ]);
-        settingsQuickBtn.addEventListener('click', function() { self.switchTab('settings'); });
-
-        var headerControls = E('div', { 'class': 'gn-action-bar' }, [
-            E('div', { 'class': 'gn-badge gn-badge-muted' }, [
-                E('span', { 'class': 'gn-pulse-dot ' + (isAgOnline ? 'gn-dot-green' : 'gn-dot-red') }),
-                E('span', {}, _('Last Sync: ') + fmtTime(self.statusData.timestamp || Date.now() / 1000))
-            ]),
-            E('div', { 'style': 'display:flex;gap:10px;align-items:center;' }, [
-                toggleBtn,
-                refreshBtn,
-                settingsQuickBtn
-            ])
-        ]);
-
-        // Offline Banner with direct Settings link
-        var offlineNotice = null;
-        if (!isAgOnline) {
-            offlineNotice = E('div', { 'class': 'gn-card', 'style': 'margin-bottom:18px;border-left:4px solid #ef4444;padding:14px 20px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;' }, [
-                E('div', { 'style': 'display:flex;align-items:center;gap:12px;' }, [
-                    svgIcon('threat', 20, '#ef4444'),
-                    E('div', {}, [
-                        E('strong', { 'style': 'color:var(--gn-text-main);font-size:14px;' }, _('AdGuard Home is offline or unreachable.')),
-                        E('div', { 'style': 'font-size:12px;color:var(--gn-text-muted);margin-top:2px;' }, _('Check your AdGuard host, port, and credentials in the Settings tab.'))
-                    ])
-                ]),
-                E('button', {
-                    'class': 'gn-btn gn-btn-primary gn-btn-sm',
-                    'click': function() { self.switchTab('settings'); }
-                }, _('Configure Settings ?'))
-            ]);
-        }
-
-        // Top 4 Status KPI Cards
-        var topCards = E('div', { 'class': 'gn-kpi-grid', 'style': 'margin-bottom:20px;' }, [
-            // Card 1: AdGuard Home
-            E('div', { 'class': 'gn-card gn-card-glow-indigo' }, [
-                E('div', { 'class': 'gn-card-top' }, [
-                    E('div', { 'class': 'gn-card-title' }, [
-                        svgIcon('shield', 18, '#6366f1'),
-                        E('span', {}, _('AdGuard Home'))
-                    ]),
-                    E('span', { 'class': 'gn-pill ' + (isAgOnline ? 'gn-pill-success' : 'gn-pill-danger') }, [
-                        E('span', { 'class': 'gn-pulse-dot ' + (isAgOnline ? 'gn-dot-green' : 'gn-dot-red') }),
-                        isAgOnline ? _('Online') : _('Offline')
-                    ])
-                ]),
-                E('div', { 'class': 'gn-kpi-val', 'style': 'margin-top:12px;' }, fmtNum(dnsBlocked)),
-                E('div', { 'class': 'gn-kpi-sub' }, [
-                    E('span', { 'style': 'color:var(--gn-accent);font-weight:600;' }, blockedPctStr),
-                    document.createTextNode(' ' + _('queries blocked today'))
-                ])
-            ]),
-
-            // Card 2: Firewall Security
-            E('div', { 'class': 'gn-card gn-card-glow-amber' }, [
-                E('div', { 'class': 'gn-card-top' }, [
-                    E('div', { 'class': 'gn-card-title' }, [
-                        svgIcon('fire', 18, '#f59e0b'),
-                        E('span', {}, _('Firewall Security'))
-                    ]),
-                    E('span', { 'class': 'gn-pill ' + (isFwRunning ? 'gn-pill-success' : 'gn-pill-danger') }, [
-                        E('span', { 'class': 'gn-pulse-dot ' + (isFwRunning ? 'gn-dot-green' : 'gn-dot-red') }),
-                        isFwRunning ? _('Active') : _('Inactive')
-                    ])
-                ]),
-                E('div', { 'class': 'gn-kpi-val', 'style': 'margin-top:12px;' }, isFwRunning ? _('Running') : _('Stopped')),
-                E('div', { 'class': 'gn-kpi-sub' }, [
-                    E('span', { 'style': 'color:#10b981;font-weight:600;' }, String(self.firewallZones.length || 2)),
-                    document.createTextNode(' ' + _('zones filtering active'))
-                ])
-            ]),
-
-            // Card 3: Connected Clients
-            E('div', { 'class': 'gn-card gn-card-glow-emerald' }, [
-                E('div', { 'class': 'gn-card-top' }, [
-                    E('div', { 'class': 'gn-card-title' }, [
-                        svgIcon('users', 18, '#10b981'),
-                        E('span', {}, _('Connected Clients'))
-                    ]),
-                    E('span', { 'class': 'gn-pill gn-pill-info' }, _('ARP Monitored'))
-                ]),
-                E('div', { 'class': 'gn-kpi-val', 'style': 'margin-top:12px;' }, fmtNum(clientCount)),
-                E('div', { 'class': 'gn-kpi-sub' }, _('Active devices on local network'))
-            ]),
-
-            // Card 4: Threats Blocked
-            E('div', { 'class': 'gn-card gn-card-glow-rose' }, [
-                E('div', { 'class': 'gn-card-top' }, [
-                    E('div', { 'class': 'gn-card-title' }, [
-                        svgIcon('threat', 18, '#ef4444'),
-                        E('span', {}, _('Threats Filtered'))
-                    ]),
-                    E('span', { 'class': 'gn-pill gn-pill-danger' }, _('Protected'))
-                ]),
-                E('div', { 'class': 'gn-kpi-val', 'style': 'margin-top:12px;' }, fmtNum(totalThreats)),
-                E('div', { 'class': 'gn-kpi-sub' }, [
-                    E('span', { 'style': 'color:#ef4444;font-weight:600;' }, fmtNum(safeBrowsingBlocked)),
-                    document.createTextNode(' ' + _('malware & phishing hits'))
-                ])
-            ])
-        ]);
-
-        // Real-Time Stats Bar
-        var statsBar = E('div', { 'class': 'gn-card', 'style': 'margin-bottom:20px;padding:18px 22px;' }, [
-            E('div', { 'style': 'display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;margin-bottom:14px;' }, [
-                E('div', { 'style': 'font-weight:700;color:var(--gn-text-main);font-size:15px;display:flex;align-items:center;gap:8px;' }, [
-                    svgIcon('pulse', 16, '#6366f1'),
-                    E('span', {}, _('DNS Protection Telemetry (24h Overview)'))
-                ]),
-                E('div', { 'style': 'font-size:13px;color:var(--gn-text-muted);' }, [
-                    document.createTextNode(_('Block Ratio: ')),
-                    E('strong', { 'style': 'color:var(--gn-accent);font-size:14px;' }, blockedPctStr)
-                ])
-            ]),
-            // Progress Bar
-            E('div', { 'class': 'gn-progress-track', 'style': 'margin-bottom:16px;' }, [
-                E('div', {
-                    'class': 'gn-progress-fill',
-                    'style': 'width:' + (dnsTotal > 0 ? Math.min(100, Math.max(2, (dnsBlocked / dnsTotal) * 100)) : 0) + '%;'
-                })
-            ]),
-            // Sub-metrics Grid
-            E('div', { 'style': 'display:grid;grid-template-columns:repeat(auto-fit, minmax(170px, 1fr));gap:16px;' }, [
-                E('div', { 'class': 'gn-stat-box' }, [
-                    E('div', { 'class': 'gn-stat-lbl' }, _('Total DNS Queries')),
-                    E('div', { 'class': 'gn-stat-num' }, fmtNum(dnsTotal))
-                ]),
-                E('div', { 'class': 'gn-stat-box' }, [
-                    E('div', { 'class': 'gn-stat-lbl' }, _('Queries Blocked')),
-                    E('div', { 'class': 'gn-stat-num', 'style': 'color:#ef4444;' }, fmtNum(dnsBlocked))
-                ]),
-                E('div', { 'class': 'gn-stat-box' }, [
-                    E('div', { 'class': 'gn-stat-lbl' }, _('Safe Browsing Hits')),
-                    E('div', { 'class': 'gn-stat-num', 'style': 'color:#f59e0b;' }, fmtNum(safeBrowsingBlocked))
-                ]),
-                E('div', { 'class': 'gn-stat-box' }, [
-                    E('div', { 'class': 'gn-stat-lbl' }, _('Avg Processing Time')),
-                    E('div', { 'class': 'gn-stat-num', 'style': 'color:#10b981;' }, avgLatencyMs + ' ms')
-                ])
-            ])
-        ]);
-
-        // Recent 10 Queries Table
-        var recentList = (self.adguardLog || []).slice(0, 10);
-        var tableCard = E('div', { 'class': 'gn-card' }, [
-            E('div', { 'class': 'gn-card-header', 'style': 'display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;' }, [
-                E('div', { 'class': 'gn-card-title' }, [
-                    svgIcon('filter', 16, '#6366f1'),
-                    E('span', {}, _('Recent DNS Activity (Last 10 Queries)'))
-                ]),
-                E('button', {
-                    'class': 'gn-btn gn-btn-sec gn-btn-sm',
-                    'click': function() { self.switchTab('adguard'); }
-                }, _('View All Queries in AdGuard ?'))
-            ]),
-            E('div', { 'class': 'gn-table-container' }, [
-                self.buildQueryTable(recentList)
-            ])
-        ]);
-
-        container.appendChild(headerControls);
-        if (offlineNotice) container.appendChild(offlineNotice);
-        container.appendChild(topCards);
-        container.appendChild(statsBar);
-        container.appendChild(tableCard);
-    },
-
-    // =========================================================================
-    // TAB 2: ADGUARD HOME RENDERER
+    // TAB 1: ADGUARD HOME RENDERER
     // =========================================================================
     renderAdGuardPane: function(container) {
         var self = this;
@@ -628,13 +352,16 @@ return view.extend({
         var ag = (self.statusData && self.statusData.adguard) || {};
         var agStats = (ag.stats && Object.keys(ag.stats).length > 0) ? ag.stats : (self.adguardStatsDirect || {});
         var isOnline = (ag.status === 'online') ||
-                       (self.adguardFilters && self.adguardFilters.length > 0) ||
-                       (self.adguardLog && self.adguardLog.length > 0) ||
                        (agStats && agStats.num_dns_queries !== undefined && agStats.num_dns_queries > 0);
-        var host = ag.host || uci.get('guardian', 'main', 'adguard_host') || '127.0.0.1';
-        var port = ag.port || uci.get('guardian', 'main', 'adguard_port') || 8080;
+        var isProtEnabled = (ag.protection_enabled !== false && ag.protection_enabled !== 'false' && ag.protection_enabled !== 0);
+
+        // Dynamically compute AdGuard endpoint from Settings (UCI)
+        var uciHost = (uci.get('guardian', 'main', 'adguard_host') || '').trim();
+        var uciPort = (uci.get('guardian', 'main', 'adguard_port') || '').trim();
+        var host = uciHost || ag.host || window.location.hostname || '192.168.1.1';
+        var port = uciPort || ag.port || 8080;
         var version = (ag.version && ag.version !== 'N/A') ? ag.version : ((isOnline && ag.version) ? ag.version : 'Running');
-        var agDisplayHost = (host === '127.0.0.1' || host === 'localhost') ? window.location.hostname : host;
+        var agDisplayHost = (host === '127.0.0.1' || host === 'localhost') ? (window.location.hostname || '192.168.1.1') : host;
         var agUrl = 'http://' + agDisplayHost + ':' + port;
 
         var dnsTotal = agStats.num_dns_queries || 0;
@@ -643,23 +370,34 @@ return view.extend({
         var parentalBlocked = agStats.num_replaced_parental || 0;
         var avgLatencyMs = agStats.avg_processing_time ? (agStats.avg_processing_time * 1000).toFixed(1) : '--';
 
+        // Toggle Protection Button (Start / Pause)
+        var toggleProtBtn = E('button', {
+            'class': 'gn-btn ' + (!isOnline ? 'gn-btn-sec' : (isProtEnabled ? 'gn-btn-warning' : 'gn-btn-success')),
+            'style': 'display:inline-flex;align-items:center;gap:6px;',
+            'disabled': !isOnline ? true : null
+        }, [
+            svgIcon('power', 14),
+            E('span', {}, (!isOnline ? _('Service Offline') : (isProtEnabled ? _('Pause Protection') : _('Start Protection'))))
+        ]);
+        toggleProtBtn.addEventListener('click', function() { self.handleToggleProtection(toggleProtBtn); });
+
         // Connection Banner Card
         var banner = E('div', { 'class': 'gn-card gn-banner-card', 'style': 'margin-bottom:20px;' }, [
             E('div', { 'style': 'display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:16px;' }, [
                 E('div', { 'style': 'display:flex;align-items:center;gap:14px;' }, [
-                    E('div', { 'class': 'gn-icon-box' }, svgIcon('shield', 26, '#6366f1')),
+                    E('div', { 'class': 'gn-icon-box' }, svgIcon('shield', 26, !isOnline ? '#ef4444' : (isProtEnabled ? '#10b981' : '#f59e0b'))),
                     E('div', {}, [
                         E('div', { 'style': 'display:flex;align-items:center;gap:10px;' }, [
                             E('h3', { 'style': 'margin:0;font-size:17px;font-weight:700;color:var(--gn-text-main);' }, _('AdGuard Home Core Engine')),
-                            E('span', { 'class': 'gn-pill ' + (isOnline ? 'gn-pill-success' : 'gn-pill-danger') }, [
-                                E('span', { 'class': 'gn-pulse-dot ' + (isOnline ? 'gn-dot-green' : 'gn-dot-red') }),
-                                isOnline ? _('Connected') : _('Disconnected')
+                            E('span', { 'class': 'gn-pill ' + (!isOnline ? 'gn-pill-danger' : (isProtEnabled ? 'gn-pill-success' : 'gn-pill-warning')) }, [
+                                E('span', { 'class': 'gn-pulse-dot ' + (!isOnline ? 'gn-dot-red' : (isProtEnabled ? 'gn-dot-green' : 'gn-dot-amber')) }),
+                                !isOnline ? _('Disconnected') : (isProtEnabled ? _('Connected & Active') : _('Protection Paused'))
                             ])
                         ]),
                         E('div', { 'style': 'font-size:12px;color:var(--gn-text-muted);margin-top:4px;display:flex;gap:14px;flex-wrap:wrap;' }, [
-                            E('span', {}, _('Host: ') + host + ':' + port),
+                            E('span', {}, _('Host: ') + agDisplayHost + ':' + port),
                             E('span', {}, _('Version: ') + version),
-                            E('span', {}, _('Status: ') + (isOnline ? _('Active DNS Filter') : _('Service Unreachable')))
+                            E('span', {}, _('Status: ') + (!isOnline ? _('Service Unreachable') : (isProtEnabled ? _('Active DNS Filter') : _('Filtering Paused (Bypass Mode)'))))
                         ])
                     ])
                 ]),
@@ -671,12 +409,9 @@ return view.extend({
                         'style': 'text-decoration:none;display:inline-flex;align-items:center;gap:6px;'
                     }, [
                         svgIcon('external', 14),
-                        E('span', {}, _('Open AdGuard UI ?'))
+                        E('span', {}, _('Open AdGuard UI ↗'))
                     ]),
-                    E('button', {
-                        'class': 'gn-btn ' + (isOnline ? 'gn-btn-warning' : 'gn-btn-primary'),
-                        'click': function() { self.handleToggleProtection(this); }
-                    }, isOnline ? _('Pause Protection') : _('Resume Protection')),
+                    toggleProtBtn,
                     E('button', {
                         'class': 'gn-btn gn-btn-sec',
                         'click': function() { self.switchTab('settings'); }
@@ -717,126 +452,84 @@ return view.extend({
             ])
         ]);
 
-        // Filter Blocklists Card
-        var btnRefreshFilters = E('button', {
-            'class': 'gn-btn gn-btn-sec gn-btn-sm',
-            'style': 'display:inline-flex;align-items:center;gap:6px;'
-        }, [
-            svgIcon('refresh', 14),
-            E('span', {}, _('Refresh Filters'))
-        ]);
-        btnRefreshFilters.addEventListener('click', function() {
-            self.handleRefreshFilters(btnRefreshFilters, container);
-        });
+        // Live DNS Query Log Direct Link Card
+        var queryLogAllUrl = agUrl + '/#logs?response_status=all';
+        var queryLogBlockedUrl = agUrl + '/#logs?response_status=filtered';
+        var queryLogAllowedUrl = agUrl + '/#logs?response_status=not_filtered';
 
-        var filterCard = E('div', { 'class': 'gn-card', 'style': 'margin-bottom:20px;' }, [
-            E('div', { 'class': 'gn-card-header', 'style': 'display:flex;justify-content:space-between;align-items:center;' }, [
-                E('div', { 'class': 'gn-card-title' }, [
-                    svgIcon('shield', 16, '#6366f1'),
-                    E('span', {}, _('Configured Filter Lists & Rule Status'))
-                ]),
-                btnRefreshFilters
-            ]),
-            E('div', { 'class': 'gn-table-container' }, [
-                self.buildFilterTable(self.adguardFilters)
-            ])
-        ]);
-
-        // Interactive DNS Query Inspector
-        var searchInput = E('input', {
-            'type': 'text',
-            'class': 'cbi-input-text gn-input',
-            'placeholder': _('Filter by domain, client IP...'),
-            'value': self.querySearchTerm || '',
-            'style': 'min-width:260px;'
-        });
-
-        var statusSelect = E('select', {
-            'class': 'cbi-input-select gn-select',
-            'style': 'min-width:140px;'
-        }, [
-            E('option', { 'value': 'all', 'selected': self.queryStatusFilter === 'all' ? '' : null }, _('All Statuses')),
-            E('option', { 'value': 'blocked', 'selected': self.queryStatusFilter === 'blocked' ? '' : null }, _('Blocked Only')),
-            E('option', { 'value': 'allowed', 'selected': self.queryStatusFilter === 'allowed' ? '' : null }, _('Allowed Only'))
-        ]);
-
-        var queryTableWrapper = E('div', { 'class': 'gn-table-container' });
-
-        function updateQueryList() {
-            var filtered = (self.adguardLog || []).filter(function(item) {
-                var domain = (item.question && item.question.name) || '';
-                var client = item.client || '';
-                var isBlocked = isQueryBlocked(item);
-
-                if (self.queryStatusFilter === 'blocked' && !isBlocked) return false;
-                if (self.queryStatusFilter === 'allowed' && isBlocked) return false;
-
-                if (self.querySearchTerm) {
-                    var term = self.querySearchTerm.toLowerCase();
-                    if (domain.toLowerCase().indexOf(term) === -1 && client.toLowerCase().indexOf(term) === -1) {
-                        return false;
-                    }
-                }
-                return true;
-            });
-            queryTableWrapper.innerHTML = '';
-            queryTableWrapper.appendChild(self.buildQueryTable(filtered));
-        }
-
-        searchInput.addEventListener('input', function(e) {
-            self.querySearchTerm = e.target.value.trim();
-            updateQueryList();
-        });
-
-        statusSelect.addEventListener('change', function(e) {
-            self.queryStatusFilter = e.target.value;
-            updateQueryList();
-        });
-
-        var btnRefreshLog = E('button', {
-            'class': 'gn-btn gn-btn-sec gn-btn-sm',
-            'style': 'display:inline-flex;align-items:center;gap:6px;'
-        }, [
-            svgIcon('refresh', 14),
-            E('span', {}, _('Refresh Log'))
-        ]);
-        btnRefreshLog.addEventListener('click', function() {
-            fs.exec(ACTION_SCRIPT, ['adguard_log']).then(function(res) {
-                if (res && res.stdout) {
-                    var qJson = safeJson(res.stdout, {});
-                    self.adguardLog = qJson.data || [];
-                }
-                updateQueryList();
-                ui.addNotification(null, E('p', {}, _('Query log refreshed.')), 2500);
-            });
-        });
-
-        updateQueryList();
-
-        var queryCard = E('div', { 'class': 'gn-card' }, [
+        var queryLogCard = E('div', { 'class': 'gn-card' }, [
             E('div', { 'class': 'gn-card-header', 'style': 'display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;' }, [
                 E('div', { 'class': 'gn-card-title' }, [
                     svgIcon('search', 16, '#6366f1'),
-                    E('span', {}, _('Live DNS Query Inspector (Last 50 Entries)'))
+                    E('span', {}, _('Live DNS Query Inspector & Logs'))
                 ]),
-                E('div', { 'style': 'display:flex;gap:10px;align-items:center;flex-wrap:wrap;' }, [
-                    searchInput,
-                    statusSelect,
-                    btnRefreshLog
+                E('a', {
+                    'href': queryLogAllUrl,
+                    'target': '_blank',
+                    'class': 'gn-btn gn-btn-primary gn-btn-sm',
+                    'style': 'text-decoration:none;display:inline-flex;align-items:center;gap:6px;'
+                }, [
+                    svgIcon('external', 13),
+                    E('span', {}, _('Open Live Logs ↗'))
                 ])
             ]),
-            queryTableWrapper
+            E('div', { 'style': 'padding:22px;display:flex;flex-direction:column;gap:18px;' }, [
+                E('div', { 'style': 'display:flex;align-items:flex-start;gap:14px;' }, [
+                    E('div', { 'class': 'gn-icon-box', 'style': 'background:rgba(99,102,241,0.1);color:#6366f1;flex-shrink:0;' }, svgIcon('search', 22, '#6366f1')),
+                    E('div', {}, [
+                        E('div', { 'style': 'font-size:14px;font-weight:700;color:var(--gn-text-main);margin-bottom:5px;' },
+                            _('Native AdGuard Home Live Query Inspector')
+                        ),
+                        E('div', { 'style': 'font-size:12px;color:var(--gn-text-muted);line-height:1.6;' },
+                            _('Inspect real-time DNS queries, DNSSEC validations, protocol types, client devices, and individual rule triggers with instant unblock and block controls directly in AdGuard Home.')
+                        )
+                    ])
+                ]),
+                E('div', { 'style': 'display:flex;gap:12px;align-items:center;flex-wrap:wrap;padding-top:4px;' }, [
+                    E('a', {
+                        'href': queryLogAllUrl,
+                        'target': '_blank',
+                        'class': 'gn-btn gn-btn-primary',
+                        'style': 'text-decoration:none;display:inline-flex;align-items:center;gap:8px;'
+                    }, [
+                        svgIcon('search', 14),
+                        E('span', {}, _('Check All Live Queries ↗'))
+                    ]),
+                    E('a', {
+                        'href': queryLogBlockedUrl,
+                        'target': '_blank',
+                        'class': 'gn-btn gn-btn-danger',
+                        'style': 'text-decoration:none;display:inline-flex;align-items:center;gap:8px;'
+                    }, [
+                        svgIcon('cross', 14, '#ffffff'),
+                        E('span', {}, _('Check Blocked Queries Only ↗'))
+                    ]),
+                    E('a', {
+                        'href': queryLogAllowedUrl,
+                        'target': '_blank',
+                        'class': 'gn-btn gn-btn-sec',
+                        'style': 'text-decoration:none;display:inline-flex;align-items:center;gap:8px;'
+                    }, [
+                        svgIcon('check', 14, '#10b981'),
+                        E('span', {}, _('Check Allowed Queries ↗'))
+                    ])
+                ]),
+                E('div', { 'style': 'display:flex;align-items:center;gap:10px;font-size:12px;background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.05);border-radius:8px;padding:10px 14px;' }, [
+                    E('span', { 'style': 'font-weight:600;color:var(--gn-text-muted);' }, _('Direct URL:')),
+                    E('a', {
+                        'href': queryLogAllUrl,
+                        'target': '_blank',
+                        'style': 'color:#6366f1;text-decoration:none;font-family:monospace;word-break:break-all;'
+                    }, queryLogAllUrl)
+                ])
+            ])
         ]);
 
         container.appendChild(banner);
         container.appendChild(metricGrid);
-        container.appendChild(filterCard);
-        container.appendChild(queryCard);
+        container.appendChild(queryLogCard);
     },
 
-    // =========================================================================
-    // TAB 3: FIREWALL RENDERER
-    // =========================================================================
     renderFirewallPane: function(container) {
         var self = this;
         container.innerHTML = '';
@@ -1353,7 +1046,7 @@ return view.extend({
                 }
             }).then(function() {
                 ui.addNotification(null, E('p', {}, _('Guardian Onyx settings saved and applied successfully.')), 3500);
-                return self.refreshDashboardData();
+                return self.refreshData();
             }).catch(function(err) {
                 ui.addNotification(null, E('p', {}, _('Failed to save settings: ') + (err.message || err)), 4000);
             }).finally(function() {
@@ -1466,98 +1159,6 @@ return view.extend({
     // SUB-COMPONENT BUILDERS
     // =========================================================================
 
-    // Query Table (used in Tab 1 and Tab 2)
-    buildQueryTable: function(queries) {
-        if (!queries || queries.length === 0) {
-            return E('div', { 'style': 'padding:32px;text-align:center;color:var(--gn-text-muted);' }, [
-                E('div', { 'style': 'font-size:28px;margin-bottom:8px;' }, '??'),
-                E('div', { 'style': 'font-weight:600;font-size:14px;' }, _('No DNS Queries Recorded')),
-                E('div', { 'style': 'font-size:12px;margin-top:4px;' }, _('AdGuard Home is idle or query log is empty.'))
-            ]);
-        }
-
-        return E('table', { 'class': 'gn-table' }, [
-            E('thead', {}, [
-                E('tr', {}, [
-                    E('th', {}, _('Time')),
-                    E('th', {}, _('Client')),
-                    E('th', {}, _('Domain / Question')),
-                    E('th', {}, _('Type')),
-                    E('th', {}, _('Status / Action'))
-                ])
-            ]),
-            E('tbody', {}, queries.map(function(q) {
-                var blocked = isQueryBlocked(q);
-                var domain = (q.question && q.question.name) || 'unknown';
-                var qType = (q.question && q.question.type) || 'A';
-                var client = q.client || '127.0.0.1';
-                var timeStr = fmtTime(q.time);
-
-                return E('tr', {}, [
-                    E('td', { 'style': 'color:var(--gn-text-muted);font-size:12px;white-space:nowrap;' }, timeStr),
-                    E('td', {}, [
-                        E('code', { 'class': 'gn-code' }, client)
-                    ]),
-                    E('td', { 'style': 'font-weight:600;max-width:320px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;' }, [
-                        E('span', { 'title': domain, 'style': 'color:' + (blocked ? '#ef4444' : 'var(--gn-text-main)') }, domain)
-                    ]),
-                    E('td', {}, [
-                        E('span', { 'class': 'gn-badge gn-badge-muted' }, qType)
-                    ]),
-                    E('td', {}, [
-                        E('span', { 'class': 'gn-pill ' + (blocked ? 'gn-pill-danger' : 'gn-pill-success') }, [
-                            blocked ? svgIcon('cross', 12, '#ef4444') : svgIcon('check', 12, '#10b981'),
-                            document.createTextNode(' ' + (blocked ? _('BLOCKED') : _('ALLOWED')))
-                        ])
-                    ])
-                ]);
-            }))
-        ]);
-    },
-
-    // Filter Table (used in Tab 2)
-    buildFilterTable: function(filters) {
-        if (!filters || filters.length === 0) {
-            return E('div', { 'style': 'padding:24px;text-align:center;color:var(--gn-text-muted);' },
-                _('No filter lists retrieved from AdGuard Home.')
-            );
-        }
-
-        return E('table', { 'class': 'gn-table' }, [
-            E('thead', {}, [
-                E('tr', {}, [
-                    E('th', {}, _('Filter Name')),
-                    E('th', {}, _('Status')),
-                    E('th', {}, _('Rule Count')),
-                    E('th', {}, _('Last Updated'))
-                ])
-            ]),
-            E('tbody', {}, filters.map(function(f) {
-                var isEnabled = (f.enabled === true || f.enabled === 1);
-                var ruleCount = f.rules_count || 0;
-                var updated = fmtRelative(f.last_updated);
-
-                return E('tr', {}, [
-                    E('td', { 'style': 'font-weight:600;color:var(--gn-text-main);' }, [
-                        E('span', { 'style': 'display:inline-flex;align-items:center;gap:6px;' }, [
-                            svgIcon('shield', 14, '#6366f1'),
-                            f.name || _('AdGuard Filter')
-                        ])
-                    ]),
-                    E('td', {}, [
-                        E('span', { 'class': 'gn-pill ' + (isEnabled ? 'gn-pill-success' : 'gn-pill-muted') },
-                            isEnabled ? _('Active') : _('Disabled')
-                        )
-                    ]),
-                    E('td', {}, [
-                        E('span', { 'class': 'gn-badge gn-badge-accent' }, fmtNum(ruleCount) + ' ' + _('rules'))
-                    ]),
-                    E('td', { 'style': 'color:var(--gn-text-muted);font-size:12px;' }, updated)
-                ]);
-            }))
-        ]);
-    },
-
     // Client Table (used in Tab 4)
     buildClientTable: function(clients) {
         if (!clients || clients.length === 0) {
@@ -1623,7 +1224,7 @@ return view.extend({
         var self = this;
         self.activeTab = targetTab;
 
-        var tabs = ['dashboard', 'adguard', 'firewall', 'clients', 'settings'];
+        var tabs = ['adguard', 'firewall', 'clients', 'settings'];
         tabs.forEach(function(t) {
             var btn = document.getElementById('gn-tab-btn-' + t);
             var pane = document.getElementById('gn-pane-' + t);
@@ -1632,10 +1233,7 @@ return view.extend({
         });
 
         // Tab-specific rendering on activation
-        if (targetTab === 'dashboard') {
-            var pd = document.getElementById('gn-pane-dashboard');
-            if (pd) self.renderDashboardPane(pd);
-        } else if (targetTab === 'adguard') {
+        if (targetTab === 'adguard') {
             var pa = document.getElementById('gn-pane-adguard');
             if (pa) self.renderAdGuardPane(pa);
         } else if (targetTab === 'firewall') {
@@ -1659,23 +1257,15 @@ return view.extend({
         // Parse initial loaded data
         if (data[0] && data[0].stdout) self.statusData = safeJson(data[0].stdout, {});
         if (data[1] && data[1].stdout) {
-            var logJson = safeJson(data[1].stdout, {});
-            self.adguardLog = logJson.data || [];
-        }
-        if (data[2] && data[2].stdout) {
-            var filterJson = safeJson(data[2].stdout, {});
-            self.adguardFilters = filterJson.filters || [];
-        }
-        if (data[3] && data[3].stdout) self.firewallZones = safeJson(data[3].stdout, []);
-        if (data[4] && data[4].stdout) self.connectedClients = safeJson(data[4].stdout, []);
-        if (data[5]) self.conntrackCount = parseInt(data[5].trim(), 10) || 0;
-        self.uciGuardian = data[6] || {};
-        self.uciFirewall = data[7] || {};
-        if (data[8] && data[8].stdout) {
-            self.adguardStatsDirect = safeJson(data[8].stdout, {});
+            self.adguardStatsDirect = safeJson(data[1].stdout, {});
         } else {
             self.adguardStatsDirect = {};
         }
+        if (data[2] && data[2].stdout) self.firewallZones = safeJson(data[2].stdout, []);
+        if (data[3] && data[3].stdout) self.connectedClients = safeJson(data[3].stdout, []);
+        if (data[4]) self.conntrackCount = parseInt(data[4].trim(), 10) || 0;
+        self.uciGuardian = data[5] || {};
+        self.uciFirewall = data[6] || {};
 
         // Merge direct stats into statusData if statusData.adguard is empty or missing stats
         if (!self.statusData || !self.statusData.adguard) {
@@ -1842,7 +1432,7 @@ return view.extend({
                 E('div', {}, [
                     E('div', { 'style': 'display:flex;align-items:center;gap:8px;' }, [
                         E('h1', { 'class': 'gn-title' }, 'Guardian Onyx'),
-                        E('span', { 'class': 'gn-badge gn-badge-accent', 'style': 'font-size:11px;padding:2px 8px;' }, 'v1.0')
+                        E('span', { 'class': 'gn-badge gn-badge-accent', 'style': 'font-size:11px;padding:2px 8px;' }, 'v1.0.2')
                     ]),
                     E('p', { 'class': 'gn-subtitle' }, _('OpenWrt Unified Security, AdGuard Home & Firewall Monitoring'))
                 ])
@@ -1856,18 +1446,10 @@ return view.extend({
             ])
         ]);
 
-        // Tab Navigation Buttons (5 Tabs)
-        var tabBtnDashboard = E('button', {
-            'id': 'gn-tab-btn-dashboard',
-            'class': 'gn-tab-btn active'
-        }, [
-            svgIcon('pulse', 15),
-            E('span', {}, _('Dashboard'))
-        ]);
-
+        // Tab Navigation Buttons (4 Tabs)
         var tabBtnAdguard = E('button', {
             'id': 'gn-tab-btn-adguard',
-            'class': 'gn-tab-btn'
+            'class': 'gn-tab-btn active'
         }, [
             svgIcon('shield', 15),
             E('span', {}, _('AdGuard Home'))
@@ -1897,14 +1479,12 @@ return view.extend({
             E('span', {}, _('Settings'))
         ]);
 
-        tabBtnDashboard.addEventListener('click', function() { self.switchTab('dashboard'); });
         tabBtnAdguard.addEventListener('click', function() { self.switchTab('adguard'); });
         tabBtnFirewall.addEventListener('click', function() { self.switchTab('firewall'); });
         tabBtnClients.addEventListener('click', function() { self.switchTab('clients'); });
         tabBtnSettings.addEventListener('click', function() { self.switchTab('settings'); });
 
         var navTabs = E('div', { 'class': 'gn-nav-tabs' }, [
-            tabBtnDashboard,
             tabBtnAdguard,
             tabBtnFirewall,
             tabBtnClients,
@@ -1912,31 +1492,26 @@ return view.extend({
         ]);
 
         // Content Panes
-        var paneDashboard = E('div', { 'id': 'gn-pane-dashboard', 'style': 'display:block;' });
-        var paneAdguard = E('div', { 'id': 'gn-pane-adguard', 'style': 'display:none;' });
+        var paneAdguard = E('div', { 'id': 'gn-pane-adguard', 'style': 'display:block;' });
         var paneFirewall = E('div', { 'id': 'gn-pane-firewall', 'style': 'display:none;' });
         var paneClients = E('div', { 'id': 'gn-pane-clients', 'style': 'display:none;' });
         var paneSettings = E('div', { 'id': 'gn-pane-settings', 'style': 'display:none;' });
 
         // Initial Pane Render
-        self.renderDashboardPane(paneDashboard);
+        self.renderAdGuardPane(paneAdguard);
 
         // Assembly
         wrapper.appendChild(styleNode);
         wrapper.appendChild(header);
         wrapper.appendChild(navTabs);
-        wrapper.appendChild(paneDashboard);
         wrapper.appendChild(paneAdguard);
         wrapper.appendChild(paneFirewall);
         wrapper.appendChild(paneClients);
         wrapper.appendChild(paneSettings);
 
-        // Setup Polling for Dashboard every 10 seconds
+        // Setup Polling every 10 seconds
         poll.add(function() {
-            if (self.activeTab === 'dashboard') {
-                return self.refreshDashboardData();
-            }
-            return Promise.resolve();
+            return self.refreshData();
         }, 10);
 
         return wrapper;

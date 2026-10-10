@@ -4,7 +4,7 @@
 
 ### Unified Security, AdGuard Home & Firewall Dashboard for OpenWrt
 
-[![Version](https://img.shields.io/badge/version-1.0.1--r1-blue.svg)](https://github.com/MrManiesh/luci-app-guardian-onyx/releases)
+[![Version](https://img.shields.io/badge/version-1.0.2--r1-blue.svg)](https://github.com/MrManiesh/luci-app-guardian-onyx/releases)
 [![OpenWrt](https://img.shields.io/badge/OpenWrt-23.05%20|%2024.10%2B%20(apk)-success.svg)](https://openwrt.org)
 [![ImmortalWrt](https://img.shields.io/badge/ImmortalWrt-Compatible-success.svg)](https://immortalwrt.org)
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
@@ -33,34 +33,25 @@ Built with the **Onyx Design System**, Guardian automatically adapts to any Open
 
 ---
 
-### 5-Tab Unified Control Center
+### 4-Tab Unified Control Center
 
-#### 1. Dashboard (Overview)
-- **Top Status KPI Cards**:
-  - **AdGuard Home**: Real-time online/offline badge with pulsing indicator and today's blocked queries counter.
-  - **Firewall Security**: Running engine status (`nftables` / `fw4` or `iptables` / `fw3`) and active zone filter count.
-  - **Connected Clients**: ARP-monitored active device count.
-  - **Threats Filtered**: Combined malware, phishing, and parental block counter.
-- **1-Click Protection Toggle**: Instantly pause or resume AdGuard Home DNS protection with automatic state refresh.
-- **24-Hour Telemetry Bar**: Visual block-percentage progress bar, total queries, filter rate, and average upstream query latency.
-- **Live DNS Activity**: Compact preview table showing recent queries with domain, client IP, query type, and color-coded status badges (`BLOCKED` in red, `ALLOWED` in green).
+#### 1. AdGuard Home Suite
+- **Instance Banner**: Host, port, core engine version, and live filtering state badge (`Connected & Active` / `Protection Paused`).
+- **1-Click Protection Toggle**: Instantly pause or resume AdGuard Home DNS protection (`Pause Protection` / `Start Protection`). When paused, all filtering rules are completely bypassed.
+- **Deep Analytics KPI Cards**: Total DNS queries (24h), queries blocked by filters, safe browsing malicious hits, parental blocks, and upstream query latency.
+- **Live DNS Query Log & Threat Inspector**: Direct 1-click integration with AdGuard Home's native query inspector (`http://192.168.1.1:8080/#logs?response_status=all`), featuring dedicated quick links for all queries, blocked queries, and allowed queries.
+- **Direct Navigation**: 1-click shortcut to open the full AdGuard Home Web UI in a new tab.
 
-#### 2. AdGuard Home Suite
-- **Instance Banner**: Host, port, core version, connection state, and quick shortcut to open the full AdGuard Web UI in a new tab.
-- **Deep Analytics Cards**: Total queries (24h), queries blocked by filters, safe browsing malicious hits, parental control stops, and processing latency.
-- **Blocklist & Filter Rules**: Inspect all active blocklists, rule counts, enabled status, and last update times. Includes a **"Refresh Filters"** button.
-- **Interactive Query Inspector**: Searchable table of recent DNS requests with real-time domain/client filtering and status dropdown (All / Blocked / Allowed).
-
-#### 3. Firewall Management
+#### 2. Firewall Management
 - **Engine Status & Telemetry**: Shows active firewall backend (`nftables` / `fw4`) and real-time conntrack session count.
 - **Firewall Security Zones**: Full breakdown of zones (`lan`, `wan`, `guest`) with color-coded policy badges (`ACCEPT` = green, `DROP` = red, `REJECT` = orange).
 - **Port Redirection (DNAT)**: Clear list of active port forwarding rules showing rule name, protocol, external source, internal destination, and status.
 - **1-Click Reload**: Dedicated **"Reload Firewall"** button triggers safe firewall ruleset reloading with instant feedback.
 
-#### 4. Connected Clients & Security Audit
+#### 3. Connected Clients & Security Audit
 - **Discovery Summary**: Total ARP clients, verified DHCP leases, unregistered devices, and suspicious hardware flags.
 - **Client Security Table**:
-  - **Risk Dot**: Green (Verified DHCP hostname), Orange (Unregistered / unknown hostname), Red (Suspicious MAC / multicast anomaly).
+  - **Risk Dot**: Green (Verified DHCP hostname), Orange (Unregistered / unknown hostname), Red (Suspicious MAC / broadcast anomaly).
   - Monospace IP and MAC formatting.
   - Interface binding (`br-lan`, `eth0`, `wlan0`).
   - Active ARP status and risk assessment badges.
@@ -68,10 +59,10 @@ Built with the **Onyx Design System**, Guardian automatically adapts to any Open
 - **On-Demand Scan**: "Scan Now" button triggers immediate ARP cache refresh.
 - **Hardening Recommendations**: Built-in best practices for static DHCP reservation and IoT VLAN segmentation.
 
-#### 5. Settings & AdGuard Configuration
+#### 4. Settings & AdGuard Configuration
 - **Customizable Endpoint**: Configurable AdGuard Host IP and Web UI Port (e.g. `8080`, `8081`, `3000`).
 - **Authentication**: Optional username and password credentials.
-- **"Retrieve from File" Auto-Discovery**: 1-click credential recovery that automatically checks `/etc/guardian_credentials.json`, UCI, and `adguardhome.yaml` if username/password are forgotten.
+- **"Retrieve from File" Auto-Discovery**: 1-click credential recovery that automatically checks `/etc/guardian_credentials.json`, UCI, and `adguardhome.yaml` if credentials are forgotten.
 - **Live Test Connection**: Verify AdGuard Home reachability and API status before saving.
 - **Persistent Secure Storage**: Settings are safely applied to UCI with an encrypted/restricted backup file (`chmod 0600`).
 
@@ -131,14 +122,13 @@ opkg update
 opkg install curl ca-bundle jq
 ```
 
-### Installation via APK (OpenWrt 24.10+)
+### Installation via APK (OpenWrt 24.10+ / ImmortalWrt 25.12+)
 ```sh
-apk add luci-app-guardian-onyx_1.0-1_all.apk
-```
+# Direct installation from GitHub release:
+apk add --allow-untrusted https://github.com/MrManiesh/luci-app-guardian-onyx/releases/download/v1.0.2/luci-app-guardian-onyx-1.0.2-r1.apk
 
-### Installation via OPKG (OpenWrt 23.05 & ImmortalWrt)
-```sh
-opkg install luci-app-guardian-onyx_1.0-1_all.ipk
+# Or install downloaded package:
+apk add --allow-untrusted /tmp/luci-app-guardian-onyx-1.0.2-r1.apk
 ```
 
 ### Manual Installation

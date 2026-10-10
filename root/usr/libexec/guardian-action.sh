@@ -55,6 +55,7 @@ cmd_status() {
 
     # AdGuard Home connectivity check
     local ag_status="offline"
+    local ag_protection="true"
     local ag_version="N/A"
     local ag_stats="{}"
     if [ "$adguard_enabled" = "1" ]; then
@@ -62,6 +63,8 @@ cmd_status() {
         ag_info=$(adguard_api "status")
         if [ -n "$ag_info" ]; then
             ag_status="online"
+            ag_protection=$(echo "$ag_info" | jsonfilter -e '@.protection_enabled' 2>/dev/null || echo "true")
+            [ -z "$ag_protection" ] && ag_protection="true"
             ag_version=$(echo "$ag_info" | jsonfilter -e '@.version' 2>/dev/null || echo "N/A")
             local ag_raw
             ag_raw=$(adguard_api "stats")
@@ -93,6 +96,7 @@ cmd_status() {
     "adguard": {
         "enabled": $adguard_enabled,
         "status": "$ag_status",
+        "protection_enabled": $ag_protection,
         "version": "$ag_version",
         "host": "$adguard_host",
         "port": $adguard_port,
@@ -121,27 +125,14 @@ cmd_adguard_stats() {
 }
 
 cmd_adguard_toggle() {
-    local current=$(adguard_api "status" | jsonfilter -e '@.protection_enabled' 2>/dev/null)
+    local ag_info=$(adguard_api "status")
+    local current=$(echo "$ag_info" | jsonfilter -e '@.protection_enabled' 2>/dev/null)
     if [ "$current" = "true" ]; then
-        adguard_api "protection" "POST" '{"enabled":false}'
+        adguard_api "protection" "POST" '{"enabled":false}' >/dev/null 2>&1
+        echo '{"result":"ok","protection_enabled":false}'
     else
-        adguard_api "protection" "POST" '{"enabled":true}'
-    fi
-    echo '{"result":"ok"}'
-}
-
-cmd_test_connection() {
-    local host="${2:-$(get_config adguard_host "127.0.0.1")}"
-    local port="${3:-$(get_config adguard_port "8080")}"
-    local user="${4:-$(get_config adguard_user "admin")}"
-    local pass="${5:-$(get_config adguard_password "")}"
-
-    local res
-    res=$(curl -s -f -m 5 -u "${user}:${pass}" "http://${host}:${port}/control/status" 2>/dev/null)
-    if [ -n "$res" ]; then
-        echo "$res"
-    else
-        echo "{\"error\":\"Unable to connect to AdGuard Home at http://${host}:${port}. Check host, port, or credentials.\"}"
+        adguard_api "protection" "POST" '{"enabled":true}' >/dev/null 2>&1
+        echo '{"result":"ok","protection_enabled":true}'
     fi
 }
 
@@ -169,17 +160,6 @@ cmd_firewall_zones() {
         fi
     done
     echo "${result}]"
-}
-
-cmd_firewall_reload() {
-    if command -v fw4 >/dev/null 2>&1; then
-        fw4 reload >/dev/null 2>&1
-    elif command -v fw3 >/dev/null 2>&1; then
-        fw3 reload >/dev/null 2>&1
-    elif [ -x /etc/init.d/firewall ]; then
-        /etc/init.d/firewall reload >/dev/null 2>&1
-    fi
-    echo '{"result":"ok"}'
 }
 
 cmd_clients() {
