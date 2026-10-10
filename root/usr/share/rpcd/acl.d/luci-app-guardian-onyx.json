@@ -25,7 +25,7 @@
             "ubus": {
                 "file": [ "exec" ]
             },
-            "uci": [ "guardian", "firewall" ]
+            "uci": [ "guardian", "firewall", "dhcp" ]
         }
     }
 }

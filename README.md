@@ -4,7 +4,7 @@
 
 ### Unified Security, AdGuard Home & Firewall Dashboard for OpenWrt
 
-[![Version](https://img.shields.io/badge/version-1.0.2--r1-blue.svg)](https://github.com/MrManiesh/luci-app-guardian-onyx/releases)
+[![Version](https://img.shields.io/badge/version-1.2.1-blue.svg)](https://github.com/MrManiesh/luci-app-guardian-onyx/releases)
 [![OpenWrt](https://img.shields.io/badge/OpenWrt-23.05%20|%2024.10%2B%20(apk)-success.svg)](https://openwrt.org)
 [![ImmortalWrt](https://img.shields.io/badge/ImmortalWrt-Compatible-success.svg)](https://immortalwrt.org)
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
@@ -35,29 +35,40 @@ Built with the **Onyx Design System**, Guardian automatically adapts to any Open
 
 ### 4-Tab Unified Control Center
 
-#### 1. AdGuard Home Suite
+#### 1. Connected Clients & Security Audit (Default Landing)
+- **Discovery Summary & KPI Dashboard**: Total network clients, Wi-Fi connected (5GHz vs 2.4GHz breakdown), Wired Ethernet clients, Total Data Traffic (Download/Upload bytes), and Internet Access status (`All Active` or `X Paused`).
+- **Client Internet Access Control (Pause / Resume)**:
+  - 1-click **Pause Internet** button immediately drops all outbound WAN traffic for that specific device via kernel `fw4` / `nftables` rules.
+  - 1-click **Resume Internet** button restores access instantly without rebooting.
+  - Dedicated **⛔ Paused** filter button to inspect all blocked devices in one view.
+- **Custom Device Nicknames & Aliases**:
+  - Assign friendly aliases (e.g. "Living Room TV", "Dad's Phone", "Maniesh Laptop") stored persistently in `/etc/config/guardian`.
+  - Prominent alias display with `(Alias)` badge and inline pencil editor.
+- **1-Click Static DHCP Reservations**:
+  - Easily convert any dynamic client into a permanent static DHCP lease (`+ Make Static`).
+  - Active static leases show a dedicated `📌 Static Lease` badge with 1-click release support.
+- **Real-Time Bandwidth & PHY Link Speed Telemetry**:
+  - Total Data Transferred per client (Download ⬇️ and Upload ⬆️ in KB, MB, GB).
+  - Wi-Fi PHY Link Rate (e.g. `⚡ 1.9 Gbps`, `⚡ 480 Mbps`) and active connection uptime (e.g. `⏱️ 1h 56m`).
+  - Active Conntrack sessions count per client.
+- **Per-Client DNS Threat Audit**:
+  - 1-click **DNS Logs ↗** button linking directly to AdGuard Home filtered query logs for that device (`http://<ip>:<port>/#logs?response_status=all&search="<hostname>.lan"`).
+- **Interactive Search & Quick Filter Pills**:
+  - Instant live filter by `All`, `📶 Wi-Fi`, `🔌 Wired`, `⚡ Active Traffic`, and `⛔ Paused`.
+  - Search box matching nicknames, hostnames, hardware vendors, IP addresses, and MACs.
+
+#### 2. AdGuard Home Suite
 - **Instance Banner**: Host, port, core engine version, and live filtering state badge (`Connected & Active` / `Protection Paused`).
 - **1-Click Protection Toggle**: Instantly pause or resume AdGuard Home DNS protection (`Pause Protection` / `Start Protection`). When paused, all filtering rules are completely bypassed.
 - **Deep Analytics KPI Cards**: Total DNS queries (24h), queries blocked by filters, safe browsing malicious hits, parental blocks, and upstream query latency.
-- **Live DNS Query Log & Threat Inspector**: Direct 1-click integration with AdGuard Home's native query inspector (`http://192.168.1.1:8080/#logs?response_status=all`), featuring dedicated quick links for all queries, blocked queries, and allowed queries.
+- **Live DNS Query Log & Threat Inspector**: Direct dynamic link to AdGuard Home's native query inspector (`http://<adguard-host>:<port>/#logs?response_status=all`), automatically adapted from Settings page values.
 - **Direct Navigation**: 1-click shortcut to open the full AdGuard Home Web UI in a new tab.
 
-#### 2. Firewall Management
+#### 3. Firewall Management
 - **Engine Status & Telemetry**: Shows active firewall backend (`nftables` / `fw4`) and real-time conntrack session count.
 - **Firewall Security Zones**: Full breakdown of zones (`lan`, `wan`, `guest`) with color-coded policy badges (`ACCEPT` = green, `DROP` = red, `REJECT` = orange).
 - **Port Redirection (DNAT)**: Clear list of active port forwarding rules showing rule name, protocol, external source, internal destination, and status.
 - **1-Click Reload**: Dedicated **"Reload Firewall"** button triggers safe firewall ruleset reloading with instant feedback.
-
-#### 3. Connected Clients & Security Audit
-- **Discovery Summary**: Total ARP clients, verified DHCP leases, unregistered devices, and suspicious hardware flags.
-- **Client Security Table**:
-  - **Risk Dot**: Green (Verified DHCP hostname), Orange (Unregistered / unknown hostname), Red (Suspicious MAC / broadcast anomaly).
-  - Monospace IP and MAC formatting.
-  - Interface binding (`br-lan`, `eth0`, `wlan0`).
-  - Active ARP status and risk assessment badges.
-- **Real-Time Client Filter**: Instantly search clients by IP, MAC, hostname, or interface.
-- **On-Demand Scan**: "Scan Now" button triggers immediate ARP cache refresh.
-- **Hardening Recommendations**: Built-in best practices for static DHCP reservation and IoT VLAN segmentation.
 
 #### 4. Settings & AdGuard Configuration
 - **Customizable Endpoint**: Configurable AdGuard Host IP and Web UI Port (e.g. `8080`, `8081`, `3000`).

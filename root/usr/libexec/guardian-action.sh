@@ -163,23 +163,259 @@ cmd_firewall_zones() {
 }
 
 cmd_clients() {
+    local wl_file="/tmp/guardian_wl.$$"
+    local stat_file="/tmp/guardian_stat.$$"
+    local blocked_file="/tmp/guardian_blocked.$$"
+    local alias_file="/tmp/guardian_alias.$$"
+    local static_file="/tmp/guardian_static.$$"
+    local ct_file="/tmp/guardian_ct.$$"
+
+    touch "$wl_file" "$stat_file" "$blocked_file" "$alias_file" "$static_file" "$ct_file"
+
+    # 1. Pre-collect wireless associations (iwinfo)
+    if command -v iwinfo >/dev/null 2>&1; then
+        for wdev in $(iw dev 2>/dev/null | grep Interface | awk '{print $2}'); do
+            local band="2.4GHz"
+            echo "$wdev" | grep -q "phy1" && band="5GHz"
+            iwinfo "$wdev" assoclist 2>/dev/null | grep -iE '^[0-9a-f]{2}:' | while read -r mac sig; do
+                local m=$(echo "$mac" | tr 'A-Z' 'a-z')
+                local s=$(echo "$sig" | awk '{print $1, $2}')
+                echo "${m}|${band}|${s}" >> "$wl_file"
+            done
+        done
+    fi
+
+    # 2. Pre-collect wireless station stats (bytes, bitrates, uptime)
+    for wdev in $(iw dev 2>/dev/null | grep Interface | awk '{print $2}'); do
+        iw dev "$wdev" station dump 2>/dev/null
+    done | awk '
+    /^Station / {
+        mac = tolower($2);
+        next;
+    }
+    /rx bytes:/ { rx[mac] = $3; }
+    /tx bytes:/ { tx[mac] = $3; }
+    /tx bitrate:/ { tx_rate[mac] = $3 " " $4; }
+    /rx bitrate:/ { rx_rate[mac] = $3 " " $4; }
+    /connected time:/ { conn_time[mac] = $3; }
+    END {
+        for (m in rx) {
+            print m "|" rx[m] "|" tx[m] "|" tx_rate[m] "|" rx_rate[m] "|" conn_time[m];
+        }
+    }' > "$stat_file" 2>/dev/null
+
+    # 3. Pre-collect blocked MACs from firewall
+    uci show firewall 2>/dev/null | grep -i "\.name='Guardian_Block_" | cut -d. -f2 | cut -d= -f1 | while read -r sec; do
+        uci -q get "firewall.${sec}.src_mac" 2>/dev/null | tr 'A-Z' 'a-z' >> "$blocked_file"
+    done
+
+    # 4. Pre-collect custom nicknames from guardian config
+    uci show guardian 2>/dev/null | grep "=alias" | cut -d. -f2 | cut -d= -f1 | while read -r sec; do
+        local m=$(uci -q get "guardian.${sec}.mac" 2>/dev/null | tr 'A-Z' 'a-z')
+        local n=$(uci -q get "guardian.${sec}.name" 2>/dev/null)
+        [ -n "$m" ] && [ -n "$n" ] && echo "${m}|${n}" >> "$alias_file"
+    done
+
+    # 5. Pre-collect static DHCP lease MACs
+    uci show dhcp 2>/dev/null | grep -i "\.mac=" | cut -d"'" -f2 | tr 'A-Z' 'a-z' >> "$static_file"
+
+    # 6. Pre-collect conntrack session counts and bytes per IP
+    awk '{
+        ip = ""; b1 = 0; b2 = 0;
+        for (i=1; i<=NF; i++) {
+            if ($i ~ /^src=/) {
+                sub(/^src=/, "", $i);
+                if (ip == "") ip = $i;
+            } else if ($i ~ /^bytes=/) {
+                sub(/^bytes=/, "", $i);
+                if (b1 == 0) b1 = $i + 0;
+                else if (b2 == 0) b2 = $i + 0;
+            }
+        }
+        if (ip != "") {
+            ct_cnt[ip]++;
+            ct_tx[ip] += b1;
+            ct_rx[ip] += b2;
+        }
+    } END {
+        for (ip in ct_cnt) {
+            print ip "|" ct_cnt[ip] "|" ct_tx[ip] "|" ct_rx[ip];
+        }
+    }' /proc/net/nf_conntrack > "$ct_file" 2>/dev/null
+
     local result="["
     local first=1
+
     # Parse ARP table
     while IFS= read -r line; do
         echo "$line" | grep -qE "^[0-9]" || continue
         local ip=$(echo "$line" | awk '{print $1}')
-        local mac=$(echo "$line" | awk '{print $4}')
+        local mac=$(echo "$line" | awk '{print $4}' | tr 'A-Z' 'a-z')
         local iface=$(echo "$line" | awk '{print $6}')
         [ "$mac" = "00:00:00:00:00:00" ] && continue
+
+        # Exclude WAN interfaces from local clients view
+        [ "$iface" = "wan" ] && continue
+
         # Get hostname from DHCP leases
         local hostname=$(grep -i "$mac" /tmp/dhcp.leases 2>/dev/null | awk '{print $4}' | head -1)
         [ -z "$hostname" ] || [ "$hostname" = "*" ] && hostname="Unknown"
+
+        # Check wireless info
+        local conn_type="wired"
+        local wifi_band=""
+        local wifi_signal=""
+        local wl_entry=$(grep -i "^${mac}|" "$wl_file" 2>/dev/null | head -1)
+        if [ -n "$wl_entry" ]; then
+            conn_type="wifi"
+            wifi_band=$(echo "$wl_entry" | cut -d'|' -f2)
+            wifi_signal=$(echo "$wl_entry" | cut -d'|' -f3)
+        fi
+
+        # Station stats
+        local rx_bytes=0
+        local tx_bytes=0
+        local tx_rate=""
+        local rx_rate=""
+        local conn_time=0
+        local st_entry=$(grep -i "^${mac}|" "$stat_file" 2>/dev/null | head -1)
+        if [ -n "$st_entry" ]; then
+            rx_bytes=$(echo "$st_entry" | cut -d'|' -f2)
+            tx_bytes=$(echo "$st_entry" | cut -d'|' -f3)
+            tx_rate=$(echo "$st_entry" | cut -d'|' -f4)
+            rx_rate=$(echo "$st_entry" | cut -d'|' -f5)
+            conn_time=$(echo "$st_entry" | cut -d'|' -f6)
+        fi
+
+        # Conntrack
+        local sessions=0
+        local ct_entry=$(grep "^${ip}|" "$ct_file" 2>/dev/null | head -1)
+        if [ -n "$ct_entry" ]; then
+            sessions=$(echo "$ct_entry" | cut -d'|' -f2)
+            if [ "$conn_type" = "wired" ]; then
+                tx_bytes=$(echo "$ct_entry" | cut -d'|' -f3)
+                rx_bytes=$(echo "$ct_entry" | cut -d'|' -f4)
+            fi
+        fi
+        [ -z "$sessions" ] && sessions=0
+
+        # Blocked check
+        local is_blocked="false"
+        grep -qi "^${mac}$" "$blocked_file" 2>/dev/null && is_blocked="true"
+
+        # Alias check
+        local custom_name=""
+        local al_entry=$(grep -i "^${mac}|" "$alias_file" 2>/dev/null | head -1)
+        [ -n "$al_entry" ] && custom_name=$(echo "$al_entry" | cut -d'|' -f2-)
+
+        # Static lease check
+        local is_static="false"
+        grep -qi "^${mac}$" "$static_file" 2>/dev/null && is_static="true"
+
         [ $first -eq 0 ] && result="${result},"
-        result="${result}{\"ip\":\"${ip}\",\"mac\":\"${mac}\",\"hostname\":\"${hostname}\",\"iface\":\"${iface}\"}"
+        result="${result}{\"ip\":\"${ip}\",\"mac\":\"${mac}\",\"hostname\":\"${hostname}\",\"custom_name\":\"${custom_name}\",\"iface\":\"${iface}\",\"conn_type\":\"${conn_type}\",\"wifi_band\":\"${wifi_band}\",\"wifi_signal\":\"${wifi_signal}\",\"sessions\":${sessions},\"rx_bytes\":${rx_bytes:-0},\"tx_bytes\":${tx_bytes:-0},\"tx_rate\":\"${tx_rate}\",\"rx_rate\":\"${rx_rate}\",\"conn_time\":${conn_time:-0},\"is_blocked\":${is_blocked},\"is_static\":${is_static}}"
         first=0
     done < /proc/net/arp
+
+    rm -f "$wl_file" "$stat_file" "$blocked_file" "$alias_file" "$static_file" "$ct_file"
     echo "${result}]"
+}
+
+cmd_client_block() {
+    local mac="$2"
+    local ip="$3"
+    [ -z "$mac" ] && echo '{"error":"missing mac"}' && return
+    local smac=$(echo "$mac" | tr -d ':' | tr 'A-Z' 'a-z')
+    local sname="guardian_block_${smac}"
+
+    uci set firewall."$sname"=rule
+    uci set firewall."$sname".name="Guardian_Block_${mac}"
+    uci set firewall."$sname".src="lan"
+    uci set firewall."$sname".dest="wan"
+    uci set firewall."$sname".src_mac="$mac"
+    [ -n "$ip" ] && uci set firewall."$sname".src_ip="$ip"
+    uci set firewall."$sname".target="DROP"
+    uci set firewall."$sname".enabled="1"
+    uci commit firewall
+    if command -v fw4 >/dev/null 2>&1; then
+        fw4 reload >/dev/null 2>&1
+    elif command -v fw3 >/dev/null 2>&1; then
+        fw3 reload >/dev/null 2>&1
+    elif [ -x /etc/init.d/firewall ]; then
+        /etc/init.d/firewall reload >/dev/null 2>&1
+    fi
+    echo '{"result":"ok","blocked":true}'
+}
+
+cmd_client_unblock() {
+    local mac="$2"
+    [ -z "$mac" ] && echo '{"error":"missing mac"}' && return
+    local smac=$(echo "$mac" | tr -d ':' | tr 'A-Z' 'a-z')
+    local sname="guardian_block_${smac}"
+
+    uci delete firewall."$sname" 2>/dev/null
+    for s in $(uci show firewall 2>/dev/null | grep -i "Guardian_Block_${mac}" | cut -d. -f2 | cut -d= -f1); do
+        uci delete firewall."$s" 2>/dev/null
+    done
+    uci commit firewall
+    if command -v fw4 >/dev/null 2>&1; then
+        fw4 reload >/dev/null 2>&1
+    elif command -v fw3 >/dev/null 2>&1; then
+        fw3 reload >/dev/null 2>&1
+    elif [ -x /etc/init.d/firewall ]; then
+        /etc/init.d/firewall reload >/dev/null 2>&1
+    fi
+    echo '{"result":"ok","blocked":false}'
+}
+
+cmd_set_nickname() {
+    local mac="$2"
+    local name="$3"
+    [ -z "$mac" ] && echo '{"error":"missing mac"}' && return
+    local smac=$(echo "$mac" | tr -d ':' | tr 'A-Z' 'a-z')
+    local sname="alias_${smac}"
+
+    if [ -z "$name" ]; then
+        uci delete guardian."$sname" 2>/dev/null
+    else
+        uci set guardian."$sname"=alias
+        uci set guardian."$sname".mac="$mac"
+        uci set guardian."$sname".name="$name"
+    fi
+    uci commit guardian
+    echo '{"result":"ok"}'
+}
+
+cmd_reserve_ip() {
+    local mac="$2"
+    local ip="$3"
+    local name="$4"
+    [ -z "$mac" ] || [ -z "$ip" ] && echo '{"error":"missing mac or ip"}' && return
+
+    # Clean previous reservation for this mac to avoid duplicates
+    for s in $(uci show dhcp 2>/dev/null | grep -i "\.mac='${mac}'" | cut -d. -f2 | cut -d= -f1); do
+        uci delete dhcp."$s" 2>/dev/null
+    done
+
+    uci add dhcp host >/dev/null
+    uci set dhcp.@host[-1].mac="$mac"
+    uci set dhcp.@host[-1].ip="$ip"
+    [ -n "$name" ] && [ "$name" != "Unknown" ] && uci set dhcp.@host[-1].name="$name"
+    uci set dhcp.@host[-1].dns="1"
+    uci commit dhcp
+    /etc/init.d/dnsmasq reload >/dev/null 2>&1
+    echo '{"result":"ok","is_static":true}'
+}
+
+cmd_unreserve_ip() {
+    local mac="$2"
+    [ -z "$mac" ] && echo '{"error":"missing mac"}' && return
+    for s in $(uci show dhcp 2>/dev/null | grep -i "\.mac='${mac}'" | cut -d. -f2 | cut -d= -f1); do
+        uci delete dhcp."$s" 2>/dev/null
+    done
+    uci commit dhcp
+    /etc/init.d/dnsmasq reload >/dev/null 2>&1
+    echo '{"result":"ok","is_static":false}'
 }
 
 cmd_adguard_query_log() {
@@ -328,6 +564,11 @@ case "$ACTION" in
     firewall_zones)         cmd_firewall_zones ;;
     firewall_reload)        cmd_firewall_reload ;;
     clients)                cmd_clients ;;
+    client_block)           cmd_client_block "$@" ;;
+    client_unblock)         cmd_client_unblock "$@" ;;
+    set_nickname)           cmd_set_nickname "$@" ;;
+    reserve_ip)             cmd_reserve_ip "$@" ;;
+    unreserve_ip)           cmd_unreserve_ip "$@" ;;
     daemon)                 cmd_daemon ;;
     stop)                   cmd_stop ;;
     *)

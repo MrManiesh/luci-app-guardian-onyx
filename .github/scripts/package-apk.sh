@@ -10,9 +10,15 @@ PKG_LICENSE=$(grep '^PKG_LICENSE:=' Makefile | cut -d= -f2 | tr -d ' \r\n')
 PKG_MAINTAINER=$(grep '^PKG_MAINTAINER:=' Makefile | cut -d= -f2 | tr -d '\r\n')
 PKG_DEPENDS=$(grep '^LUCI_DEPENDS:=' Makefile | cut -d= -f2 | tr -d '\r\n' | sed 's/+install //g; s/+//g')
 
+if [ -n "$PKG_RELEASE" ]; then
+	FULL_VERSION="${PKG_VERSION}.${PKG_RELEASE}"
+else
+	FULL_VERSION="${PKG_VERSION}"
+fi
+
 echo "=== Packaging Information ==="
 echo "Package:     $PKG_NAME"
-echo "Version:     $PKG_VERSION-r$PKG_RELEASE"
+echo "Version:     $FULL_VERSION"
 echo "Title:       $PKG_TITLE"
 echo "License:     $PKG_LICENSE"
 echo "Maintainer:  $PKG_MAINTAINER"
@@ -98,7 +104,7 @@ EOF
 chmod 0755 "${SCRIPTS_DIR}"/*
 
 # 4. Invoke apk mkpkg directly in lightweight alpine:edge container
-APK_FILE="${PKG_NAME}-${PKG_VERSION}-r${PKG_RELEASE}.apk"
+APK_FILE="${PKG_NAME}-${FULL_VERSION}.apk"
 
 docker run --rm \
 	-v "${WORKSPACE_DIR}":/workspace \
@@ -108,7 +114,7 @@ docker run --rm \
 		apk add apk-tools >/dev/null 2>&1 || true
 		SOURCE_DATE_EPOCH=0 apk mkpkg \
 			--info \"name:${PKG_NAME}\" \
-			--info \"version:${PKG_VERSION}-r${PKG_RELEASE}\" \
+			--info \"version:${FULL_VERSION}\" \
 			--info \"description:${PKG_TITLE}\" \
 			--info \"arch:noarch\" \
 			--info \"license:${PKG_LICENSE}\" \

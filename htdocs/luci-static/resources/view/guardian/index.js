@@ -87,6 +87,11 @@ function svgIcon(name, size, color) {
         filter: '<polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3" fill="none" stroke="' + c + '" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>',
         network: '<rect x="2" y="2" width="20" height="8" rx="2" ry="2" fill="none" stroke="' + c + '" stroke-width="2"/><rect x="2" y="14" width="20" height="8" rx="2" ry="2" fill="none" stroke="' + c + '" stroke-width="2"/><line x1="6" y1="6" x2="6.01" y2="6" stroke="' + c + '" stroke-width="2" stroke-linecap="round"/><line x1="6" y1="18" x2="6.01" y2="18" stroke="' + c + '" stroke-width="2" stroke-linecap="round"/>',
         settings: '<circle cx="12" cy="12" r="3" fill="none" stroke="' + c + '" stroke-width="2"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z" fill="none" stroke="' + c + '" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>',
+        smartphone: '<rect x="5" y="2" width="14" height="20" rx="2" ry="2" fill="none" stroke="' + c + '" stroke-width="2"/><line x1="12" y1="18" x2="12.01" y2="18" stroke="' + c + '" stroke-width="2" stroke-linecap="round"/>',
+        wifi: '<path d="M5 12.55a11 11 0 0 1 14.08 0" fill="none" stroke="' + c + '" stroke-width="2" stroke-linecap="round"/><path d="M1.42 9a16 16 0 0 1 21.16 0" fill="none" stroke="' + c + '" stroke-width="2" stroke-linecap="round"/><path d="M8.53 16.11a6 6 0 0 1 6.95 0" fill="none" stroke="' + c + '" stroke-width="2" stroke-linecap="round"/><line x1="12" y1="20" x2="12.01" y2="20" stroke="' + c + '" stroke-width="2" stroke-linecap="round"/>',
+        monitor: '<rect x="2" y="3" width="20" height="14" rx="2" ry="2" fill="none" stroke="' + c + '" stroke-width="2"/><line x1="8" y1="21" x2="16" y2="21" stroke="' + c + '" stroke-width="2"/><line x1="12" y1="17" x2="12" y2="21" stroke="' + c + '" stroke-width="2"/>',
+        chip: '<rect x="4" y="4" width="16" height="16" rx="2" fill="none" stroke="' + c + '" stroke-width="2"/><rect x="9" y="9" width="6" height="6" fill="none" stroke="' + c + '" stroke-width="2"/><line x1="9" y1="1" x2="9" y2="4" stroke="' + c + '" stroke-width="2"/><line x1="15" y1="1" x2="15" y2="4" stroke="' + c + '" stroke-width="2"/><line x1="9" y1="20" x2="9" y2="23" stroke="' + c + '" stroke-width="2"/><line x1="15" y1="20" x2="15" y2="23" stroke="' + c + '" stroke-width="2"/><line x1="20" y1="9" x2="23" y2="9" stroke="' + c + '" stroke-width="2"/><line x1="20" y1="15" x2="23" y2="15" stroke="' + c + '" stroke-width="2"/><line x1="1" y1="9" x2="4" y2="9" stroke="' + c + '" stroke-width="2"/><line x1="1" y1="15" x2="4" y2="15" stroke="' + c + '" stroke-width="2"/>',
+        copy: '<rect x="9" y="9" width="13" height="13" rx="2" ry="2" fill="none" stroke="' + c + '" stroke-width="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" fill="none" stroke="' + c + '" stroke-width="2"/>',
         pulse: '<polyline points="22 12 18 12 15 21 9 3 6 12 2 12" fill="none" stroke="' + c + '" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>'
     };
     var inner = paths[name] || paths['shield'];
@@ -98,6 +103,60 @@ function svgIcon(name, size, color) {
     span.style.verticalAlign = 'middle';
     span.innerHTML = '<svg width="' + s + '" height="' + s + '" viewBox="0 0 24 24">' + inner + '</svg>';
     return span;
+}
+
+// Helper: Identify Device Brand / Vendor
+function identifyDeviceVendor(c) {
+    var mac = (c.mac || '').toLowerCase().replace(/[:-]/g, '');
+    var hostname = (c.hostname || '').toLowerCase();
+
+    // 1. Hostname heuristics
+    if (hostname.indexOf('oneplus') !== -1) return { vendor: 'OnePlus', icon: 'smartphone', type: 'mobile' };
+    if (hostname.indexOf('redmi') !== -1 || hostname.indexOf('xiaomi') !== -1 || hostname.indexOf('poco') !== -1) return { vendor: 'Xiaomi / Redmi', icon: 'smartphone', type: 'mobile' };
+    if (hostname.indexOf('galaxy') !== -1 || hostname.indexOf('samsung') !== -1) return { vendor: 'Samsung', icon: 'smartphone', type: 'mobile' };
+    if (hostname.indexOf('iphone') !== -1 || hostname.indexOf('ipad') !== -1 || hostname.indexOf('apple') !== -1 || hostname.indexOf('macbook') !== -1) return { vendor: 'Apple', icon: 'smartphone', type: 'apple' };
+    if (hostname.indexOf('pixel') !== -1) return { vendor: 'Google Pixel', icon: 'smartphone', type: 'mobile' };
+    if (hostname.indexOf('i2404') !== -1 || hostname.indexOf('vivo') !== -1 || hostname.indexOf('iqoo') !== -1) return { vendor: 'Vivo / iQOO', icon: 'smartphone', type: 'mobile' };
+    if (hostname.indexOf('oppo') !== -1 || hostname.indexOf('realme') !== -1) return { vendor: 'Oppo / Realme', icon: 'smartphone', type: 'mobile' };
+    if (hostname.indexOf('lwip') !== -1 || hostname.indexOf('esp') !== -1 || hostname.indexOf('tasmota') !== -1 || hostname.indexOf('sonoff') !== -1) return { vendor: 'Espressif / IoT', icon: 'chip', type: 'iot' };
+    if (hostname.indexOf('anonm') !== -1 || hostname.indexOf('desktop') !== -1 || hostname.indexOf('laptop') !== -1 || hostname.indexOf('windows') !== -1 || hostname.indexOf('thinkpad') !== -1) return { vendor: 'PC / Workstation', icon: 'monitor', type: 'pc' };
+
+    // 2. MAC OUI prefix lookup
+    if (mac.length >= 6) {
+        var p = mac.substring(0, 6);
+        var ouiMap = {
+            '00337a': 'Espressif (IoT)',
+            '04ea56': 'Lite-On / PC',
+            '80ad16': 'Xiaomi',
+            'ea21f1': 'OnePlus / Oppo',
+            'a60506': 'Vivo / iQOO',
+            '56b211': 'Xiaomi / Redmi',
+            'f40f24': 'Apple', '3c22fb': 'Apple', 'acbc32': 'Apple', 'f01898': 'Apple',
+            'bc9889': 'Apple', 'a483e7': 'Apple', '38f9d3': 'Apple', '186590': 'Apple',
+            '7cd95b': 'Apple', 'd023db': 'Apple', 'b817c2': 'Apple', '28cfda': 'Apple',
+            '001a11': 'Google', '20dfb9': 'Google', 'd86c63': 'Google', 'f4f5d8': 'Google',
+            '0012fb': 'Samsung', '508569': 'Samsung', 'bc4486': 'Samsung', 'cc07ab': 'Samsung',
+            '001e64': 'Intel', '3413e8': 'Intel', '84a938': 'Intel', 'a434d9': 'Intel',
+            '001a2b': 'Raspberry Pi', 'b827eb': 'Raspberry Pi', 'dca632': 'Raspberry Pi', 'e45f01': 'Raspberry Pi',
+            '000ec6': 'Microsoft', '281878': 'Microsoft', 'dc5360': 'Microsoft',
+            '706979': 'Amazon', 'ac63be': 'Amazon', 'fc65de': 'Amazon',
+            '50c7bf': 'TP-Link', 'ec086b': 'TP-Link', '1c3bf3': 'TP-Link', '984827': 'TP-Link',
+            '00e04c': 'Realtek', '525400': 'QEMU / KVM', '080027': 'VirtualBox'
+        };
+        if (ouiMap[p]) {
+            return { vendor: ouiMap[p], icon: 'chip', type: 'oui' };
+        }
+    }
+
+    // 3. Private / Randomized MAC check
+    if (mac.length >= 2) {
+        var secondChar = mac.charAt(1).toLowerCase();
+        if (secondChar === '2' || secondChar === '6' || secondChar === 'a' || secondChar === 'e') {
+            return { vendor: _('Private Wi-Fi Address'), icon: 'shield', type: 'private' };
+        }
+    }
+
+    return { vendor: _('Network Device'), icon: 'network', type: 'generic' };
 }
 
 // Client risk assessment
@@ -138,8 +197,38 @@ function assessClientRisk(client) {
     };
 }
 
+// Byte & Duration formatters
+function formatBytes(bytes) {
+    if (!bytes || bytes <= 0) return '0 B';
+    var k = 1024;
+    var sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
+    var i = Math.floor(Math.log(bytes) / Math.log(k));
+    if (i >= sizes.length) i = sizes.length - 1;
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
+}
+
+function formatDuration(s) {
+    if (!s || s <= 0) return '';
+    if (s < 60) return s + 's';
+    var m = Math.floor(s / 60);
+    if (m < 60) return m + 'm';
+    var h = Math.floor(m / 60);
+    var remM = m % 60;
+    return h + 'h ' + remM + 'm';
+}
+
 return view.extend({
-    activeTab: 'adguard',
+    getAdGuardUrl: function() {
+        var self = this;
+        var uciHost = (uci.get('guardian', 'main', 'adguard_host') || '').trim();
+        var uciPort = (uci.get('guardian', 'main', 'adguard_port') || '').trim();
+        var ag = (self.statusData && self.statusData.adguard) || {};
+        var host = uciHost || ag.host || window.location.hostname || '192.168.1.1';
+        var port = uciPort || ag.port || 8080;
+        var agDisplayHost = (host === '127.0.0.1' || host === 'localhost') ? (window.location.hostname || '192.168.1.1') : host;
+        return 'http://' + agDisplayHost + ':' + port;
+    },
+    activeTab: 'clients',
     pollTimer: null,
     statusData: {},
     firewallZones: [],
@@ -208,10 +297,14 @@ return view.extend({
     // Refresh Data in Background (Every 10s)
     refreshData: function() {
         var self = this;
-        return Promise.all([
+        var promises = [
             L.resolveDefault(fs.exec(ACTION_SCRIPT, ['status']), null),
             L.resolveDefault(fs.exec(ACTION_SCRIPT, ['adguard_stats']), null)
-        ]).then(function(results) {
+        ];
+        if (self.activeTab === 'clients') {
+            promises.push(L.resolveDefault(fs.exec(ACTION_SCRIPT, ['clients']), null));
+        }
+        return Promise.all(promises).then(function(results) {
             if (results[0] && results[0].stdout) {
                 self.statusData = safeJson(results[0].stdout, self.statusData);
             }
@@ -221,6 +314,13 @@ return view.extend({
                     if (!self.statusData.adguard.stats || !self.statusData.adguard.stats.num_dns_queries) {
                         self.statusData.adguard.stats = self.adguardStatsDirect;
                     }
+                }
+            }
+            if (results[2] && results[2].stdout) {
+                self.connectedClients = safeJson(results[2].stdout, self.connectedClients);
+                var clientsPane = document.getElementById('gn-pane-clients');
+                if (clientsPane && self.activeTab === 'clients') {
+                    self.renderClientsPane(clientsPane);
                 }
             }
             if (self.activeTab === 'adguard') {
@@ -318,7 +418,7 @@ return view.extend({
         self.isScanningClients = true;
         if (btnEl) {
             btnEl.disabled = true;
-            btnEl.innerHTML = '<span>?</span> ' + _('Scanning...');
+            btnEl.innerHTML = '<span>⏳</span> ' + _('Scanning...');
         }
 
         fs.exec(ACTION_SCRIPT, ['clients']).then(function(res) {
@@ -336,10 +436,154 @@ return view.extend({
             if (btnEl) {
                 btnEl.disabled = false;
                 btnEl.innerHTML = '';
-                btnEl.appendChild(svgIcon('search', 14));
-                btnEl.appendChild(document.createTextNode(' ' + _('Scan Now')));
+                btnEl.appendChild(svgIcon('refresh', 13));
+                btnEl.appendChild(document.createTextNode(' ' + _('Scan Network')));
             }
         });
+    },
+
+    // Action: Toggle Client Internet Pause / Unpause
+    handleToggleInternet: function(client, btnEl) {
+        var self = this;
+        var isBlocked = Boolean(client.is_blocked);
+        var devName = client.custom_name || client.hostname || client.ip;
+
+        if (!isBlocked) {
+            if (!confirm(_('Pause Internet access for ') + devName + ' (' + client.ip + ')?\n' + _('This will immediately drop external WAN internet access for this device.'))) {
+                return;
+            }
+        }
+
+        if (btnEl) {
+            btnEl.disabled = true;
+            btnEl.innerHTML = '<span>⏳</span>';
+        }
+
+        var action = isBlocked ? 'client_unblock' : 'client_block';
+        var args = isBlocked ? [action, client.mac] : [action, client.mac, client.ip];
+
+        fs.exec(ACTION_SCRIPT, args).then(function(res) {
+            var msg = isBlocked ?
+                _('Internet access restored for ') + devName :
+                _('Internet access paused for ') + devName;
+            ui.addNotification(null, E('p', {}, msg), 3500);
+
+            client.is_blocked = !isBlocked;
+            return fs.exec(ACTION_SCRIPT, ['clients']).then(function(cRes) {
+                if (cRes && cRes.stdout) {
+                    self.connectedClients = safeJson(cRes.stdout, self.connectedClients);
+                }
+                var pane = document.getElementById('gn-pane-clients');
+                if (pane) self.renderClientsPane(pane);
+            });
+        }).catch(function(err) {
+            ui.addNotification(null, E('p', {}, _('Failed to update internet status: ') + (err.message || err)), 4000);
+        }).finally(function() {
+            if (btnEl) btnEl.disabled = false;
+        });
+    },
+
+    // Action: Edit Device Nickname
+    handleEditNickname: function(client) {
+        var self = this;
+        var rawHost = (client.hostname && client.hostname !== '*' && client.hostname !== 'Unknown') ? client.hostname : '';
+        var input = E('input', {
+            'type': 'text',
+            'class': 'cbi-input-text gn-input',
+            'value': client.custom_name || '',
+            'placeholder': _('e.g. Maniesh Phone, Living Room TV...'),
+            'style': 'width:100%;margin-top:10px;'
+        });
+
+        ui.showModal(_('Custom Device Nickname'), [
+            E('div', { 'style': 'margin-bottom:12px;font-size:13px;color:var(--gn-text-muted);' }, [
+                E('p', {}, _('Assign a friendly alias for this device. This will be shown prominently in the dashboard.')),
+                E('div', { 'style': 'margin-top:8px;font-size:12px;display:flex;gap:12px;flex-wrap:wrap;' }, [
+                    E('span', {}, _('IP: ') + E('strong', {}, client.ip)),
+                    E('span', {}, _('MAC: ') + E('code', { 'class': 'gn-code' }, (client.mac || '').toUpperCase())),
+                    rawHost ? E('span', {}, _('Host: ') + E('strong', {}, rawHost)) : null
+                ])
+            ]),
+            input,
+            E('div', { 'class': 'right', 'style': 'margin-top:18px;display:flex;gap:8px;justify-content:flex-end;' }, [
+                E('button', {
+                    'class': 'gn-btn gn-btn-sec gn-btn-sm',
+                    'click': ui.hideModal
+                }, _('Cancel')),
+                client.custom_name ? E('button', {
+                    'class': 'gn-btn gn-btn-warning gn-btn-sm',
+                    'click': function() {
+                        fs.exec(ACTION_SCRIPT, ['set_nickname', client.mac, '']).then(function() {
+                            ui.hideModal();
+                            ui.addNotification(null, E('p', {}, _('Device nickname reset to default.')), 3000);
+                            client.custom_name = '';
+                            return fs.exec(ACTION_SCRIPT, ['clients']).then(function(cRes) {
+                                if (cRes && cRes.stdout) self.connectedClients = safeJson(cRes.stdout, self.connectedClients);
+                                var pane = document.getElementById('gn-pane-clients');
+                                if (pane) self.renderClientsPane(pane);
+                            });
+                        });
+                    }
+                }, _('Reset to Default')) : null,
+                E('button', {
+                    'class': 'gn-btn gn-btn-primary gn-btn-sm',
+                    'click': function() {
+                        var newName = input.value.trim();
+                        fs.exec(ACTION_SCRIPT, ['set_nickname', client.mac, newName]).then(function() {
+                            ui.hideModal();
+                            ui.addNotification(null, E('p', {}, _('Nickname updated: ') + (newName || _('Reset'))), 3000);
+                            client.custom_name = newName;
+                            return fs.exec(ACTION_SCRIPT, ['clients']).then(function(cRes) {
+                                if (cRes && cRes.stdout) self.connectedClients = safeJson(cRes.stdout, self.connectedClients);
+                                var pane = document.getElementById('gn-pane-clients');
+                                if (pane) self.renderClientsPane(pane);
+                            });
+                        });
+                    }
+                }, _('Save Nickname'))
+            ])
+        ]);
+        setTimeout(function() { input.focus(); }, 100);
+    },
+
+    // Action: 1-Click Static DHCP Lease Reservation
+    handleToggleStaticReservation: function(client) {
+        var self = this;
+        var isStatic = Boolean(client.is_static);
+        var devName = client.custom_name || client.hostname || client.ip;
+
+        if (isStatic) {
+            if (!confirm(_('Remove static DHCP reservation for ') + devName + ' (' + client.ip + ')?\n' + _('Device will use standard dynamic DHCP lease.'))) {
+                return;
+            }
+            fs.exec(ACTION_SCRIPT, ['unreserve_ip', client.mac]).then(function() {
+                ui.addNotification(null, E('p', {}, _('Static reservation removed for ') + client.ip), 3500);
+                client.is_static = false;
+                return fs.exec(ACTION_SCRIPT, ['clients']).then(function(cRes) {
+                    if (cRes && cRes.stdout) self.connectedClients = safeJson(cRes.stdout, self.connectedClients);
+                    var pane = document.getElementById('gn-pane-clients');
+                    if (pane) self.renderClientsPane(pane);
+                });
+            }).catch(function(err) {
+                ui.addNotification(null, E('p', {}, _('Failed to remove static reservation: ') + (err.message || err)), 4000);
+            });
+        } else {
+            if (!confirm(_('Lock IP ') + client.ip + _(' permanently to MAC ') + client.mac.toUpperCase() + ' (' + devName + ')?\n' + _('This creates a permanent static DHCP lease in dnsmasq.'))) {
+                return;
+            }
+            var hostParam = client.custom_name || client.hostname;
+            fs.exec(ACTION_SCRIPT, ['reserve_ip', client.mac, client.ip, hostParam]).then(function() {
+                ui.addNotification(null, E('p', {}, _('Permanent static lease created: ') + client.ip + ' (' + devName + ')'), 3500);
+                client.is_static = true;
+                return fs.exec(ACTION_SCRIPT, ['clients']).then(function(cRes) {
+                    if (cRes && cRes.stdout) self.connectedClients = safeJson(cRes.stdout, self.connectedClients);
+                    var pane = document.getElementById('gn-pane-clients');
+                    if (pane) self.renderClientsPane(pane);
+                });
+            }).catch(function(err) {
+                ui.addNotification(null, E('p', {}, _('Failed to reserve static IP: ') + (err.message || err)), 4000);
+            });
+        }
     },
 
     // =========================================================================
@@ -454,8 +698,6 @@ return view.extend({
 
         // Live DNS Query Log Direct Link Card
         var queryLogAllUrl = agUrl + '/#logs?response_status=all';
-        var queryLogBlockedUrl = agUrl + '/#logs?response_status=filtered';
-        var queryLogAllowedUrl = agUrl + '/#logs?response_status=not_filtered';
 
         var queryLogCard = E('div', { 'class': 'gn-card' }, [
             E('div', { 'class': 'gn-card-header', 'style': 'display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;' }, [
@@ -493,25 +735,7 @@ return view.extend({
                         'style': 'text-decoration:none;display:inline-flex;align-items:center;gap:8px;'
                     }, [
                         svgIcon('search', 14),
-                        E('span', {}, _('Check All Live Queries ↗'))
-                    ]),
-                    E('a', {
-                        'href': queryLogBlockedUrl,
-                        'target': '_blank',
-                        'class': 'gn-btn gn-btn-danger',
-                        'style': 'text-decoration:none;display:inline-flex;align-items:center;gap:8px;'
-                    }, [
-                        svgIcon('cross', 14, '#ffffff'),
-                        E('span', {}, _('Check Blocked Queries Only ↗'))
-                    ]),
-                    E('a', {
-                        'href': queryLogAllowedUrl,
-                        'target': '_blank',
-                        'class': 'gn-btn gn-btn-sec',
-                        'style': 'text-decoration:none;display:inline-flex;align-items:center;gap:8px;'
-                    }, [
-                        svgIcon('check', 14, '#10b981'),
-                        E('span', {}, _('Check Allowed Queries ↗'))
+                        E('span', {}, _('Check Live Query Logs ↗'))
                     ])
                 ]),
                 E('div', { 'style': 'display:flex;align-items:center;gap:10px;font-size:12px;background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.05);border-radius:8px;padding:10px 14px;' }, [
@@ -698,56 +922,82 @@ return view.extend({
 
         var clients = self.connectedClients || [];
         var total = clients.length;
-        var verifiedCount = 0;
-        var unknownCount = 0;
-        var suspiciousCount = 0;
+        var wifiCount = 0;
+        var wiredCount = 0;
+        var blockedCount = 0;
+        var totalSessions = 0;
+        var totalRx = 0;
+        var totalTx = 0;
+        var wifi5g = 0;
+        var wifi24g = 0;
 
         clients.forEach(function(c) {
-            var risk = assessClientRisk(c);
-            if (risk.level === 'success') verifiedCount++;
-            else if (risk.level === 'warning') unknownCount++;
-            else if (risk.level === 'danger') suspiciousCount++;
+            if (c.conn_type === 'wifi') {
+                wifiCount++;
+                if (c.wifi_band === '5GHz') wifi5g++;
+                else wifi24g++;
+            } else {
+                wiredCount++;
+            }
+            if (c.is_blocked) blockedCount++;
+            totalSessions += (c.sessions || 0);
+            totalRx += (c.rx_bytes || 0);
+            totalTx += (c.tx_bytes || 0);
         });
 
-        // Top Summary Metric Cards
+        // Top Summary Metric Cards (5 KPI Cards)
         var metricGrid = E('div', { 'class': 'gn-kpi-grid', 'style': 'margin-bottom:20px;' }, [
             E('div', { 'class': 'gn-card' }, [
-                E('div', { 'class': 'gn-stat-lbl' }, _('Total ARP Clients')),
+                E('div', { 'class': 'gn-stat-lbl' }, _('Discovered Clients')),
                 E('div', { 'class': 'gn-stat-num' }, String(total)),
-                E('div', { 'class': 'gn-stat-sub' }, _('Discovered on network'))
+                E('div', { 'class': 'gn-stat-sub' }, _('Active on local LAN'))
             ]),
             E('div', { 'class': 'gn-card' }, [
-                E('div', { 'class': 'gn-stat-lbl' }, _('Verified Leases')),
-                E('div', { 'class': 'gn-stat-num', 'style': 'color:#10b981;' }, String(verifiedCount)),
-                E('div', { 'class': 'gn-stat-sub' }, _('Known hostnames in DHCP'))
+                E('div', { 'class': 'gn-stat-lbl' }, _('Wi-Fi Connected')),
+                E('div', { 'class': 'gn-stat-num', 'style': 'color:#10b981;' }, String(wifiCount)),
+                E('div', { 'class': 'gn-stat-sub' }, wifi5g + _(' on 5GHz, ') + wifi24g + _(' on 2.4GHz'))
             ]),
             E('div', { 'class': 'gn-card' }, [
-                E('div', { 'class': 'gn-stat-lbl' }, _('Unregistered Devices')),
-                E('div', { 'class': 'gn-stat-num', 'style': 'color:#f59e0b;' }, String(unknownCount)),
-                E('div', { 'class': 'gn-stat-sub' }, _('No DHCP hostname record'))
+                E('div', { 'class': 'gn-stat-lbl' }, _('Wired Ethernet')),
+                E('div', { 'class': 'gn-stat-num', 'style': 'color:#6366f1;' }, String(wiredCount)),
+                E('div', { 'class': 'gn-stat-sub' }, _('LAN switch / direct port'))
             ]),
             E('div', { 'class': 'gn-card' }, [
-                E('div', { 'class': 'gn-stat-lbl' }, _('Suspicious / High-Risk')),
-                E('div', { 'class': 'gn-stat-num', 'style': 'color:#ef4444;' }, String(suspiciousCount)),
-                E('div', { 'class': 'gn-stat-sub' }, _('Anomalous or broadcast MAC'))
+                E('div', { 'class': 'gn-stat-lbl' }, _('Total Data Traffic')),
+                E('div', { 'class': 'gn-stat-num', 'style': 'color:#06b6d4;' }, formatBytes(totalTx + totalRx)),
+                E('div', { 'class': 'gn-stat-sub' }, '⬇ ' + formatBytes(totalTx) + ' • ⬆ ' + formatBytes(totalRx))
+            ]),
+            E('div', { 'class': 'gn-card' }, [
+                E('div', { 'class': 'gn-stat-lbl' }, _('Internet Access & Traffic')),
+                E('div', { 'class': 'gn-stat-num', 'style': 'color:' + (blockedCount > 0 ? '#ef4444' : '#10b981') + ';' },
+                    blockedCount > 0 ? (blockedCount + ' ' + _('Paused')) : _('All Active')
+                ),
+                E('div', { 'class': 'gn-stat-sub' }, fmtNum(totalSessions) + ' ' + _('active sessions'))
             ])
         ]);
 
-        // Interactive Controls & Search Box
+        // Interactive Filter Buttons
+        var filterAll = E('button', { 'class': 'gn-btn ' + (!self.clientTypeFilter || self.clientTypeFilter === 'all' ? 'gn-btn-primary' : 'gn-btn-sec') + ' gn-btn-sm' }, _('All (') + total + ')');
+        var filterWifi = E('button', { 'class': 'gn-btn ' + (self.clientTypeFilter === 'wifi' ? 'gn-btn-primary' : 'gn-btn-sec') + ' gn-btn-sm' }, '📶 ' + _('Wi-Fi (') + wifiCount + ')');
+        var filterWired = E('button', { 'class': 'gn-btn ' + (self.clientTypeFilter === 'wired' ? 'gn-btn-primary' : 'gn-btn-sec') + ' gn-btn-sm' }, '🔌 ' + _('Wired (') + wiredCount + ')');
+        var filterActive = E('button', { 'class': 'gn-btn ' + (self.clientTypeFilter === 'active' ? 'gn-btn-primary' : 'gn-btn-sec') + ' gn-btn-sm' }, '⚡ ' + _('Active Traffic'));
+        var filterBlocked = E('button', { 'class': 'gn-btn ' + (self.clientTypeFilter === 'blocked' ? 'gn-btn-danger' : 'gn-btn-sec') + ' gn-btn-sm' }, '⛔ ' + _('Paused (') + blockedCount + ')');
+
+        // Search Input
         var searchInput = E('input', {
             'type': 'text',
             'class': 'cbi-input-text gn-input',
-            'placeholder': _('Filter by IP, MAC, hostname, interface...'),
+            'placeholder': _('Filter by alias, host, brand, IP, MAC...'),
             'value': self.clientSearchTerm || '',
-            'style': 'min-width:260px;'
+            'style': 'min-width:240px;'
         });
 
         var btnScanNow = E('button', {
-            'class': 'gn-btn gn-btn-primary',
+            'class': 'gn-btn gn-btn-primary gn-btn-sm',
             'style': 'display:inline-flex;align-items:center;gap:6px;'
         }, [
-            svgIcon('search', 14),
-            E('span', {}, _('Scan Now'))
+            svgIcon('refresh', 13),
+            E('span', {}, _('Scan Network'))
         ]);
         btnScanNow.addEventListener('click', function() {
             self.handleScanClients(btnScanNow, container);
@@ -757,18 +1007,53 @@ return view.extend({
 
         function updateClientList() {
             var filtered = (self.connectedClients || []).filter(function(c) {
-                if (!self.clientSearchTerm) return true;
-                var term = self.clientSearchTerm.toLowerCase();
-                var ip = (c.ip || '').toLowerCase();
-                var mac = (c.mac || '').toLowerCase();
-                var host = (c.hostname || '').toLowerCase();
-                var iface = (c.iface || '').toLowerCase();
-                return (ip.indexOf(term) !== -1 || mac.indexOf(term) !== -1 ||
-                        host.indexOf(term) !== -1 || iface.indexOf(term) !== -1);
+                if (self.clientTypeFilter === 'wifi' && c.conn_type !== 'wifi') return false;
+                if (self.clientTypeFilter === 'wired' && c.conn_type !== 'wired') return false;
+                if (self.clientTypeFilter === 'active' && (!c.sessions || c.sessions <= 0)) return false;
+                if (self.clientTypeFilter === 'blocked' && !c.is_blocked) return false;
+
+                if (self.clientSearchTerm) {
+                    var term = self.clientSearchTerm.toLowerCase();
+                    var ip = (c.ip || '').toLowerCase();
+                    var mac = (c.mac || '').toLowerCase();
+                    var host = (c.hostname || '').toLowerCase();
+                    var alias = (c.custom_name || '').toLowerCase();
+                    var vendorInfo = identifyDeviceVendor(c);
+                    var vName = (vendorInfo.vendor || '').toLowerCase();
+                    return (ip.indexOf(term) !== -1 || mac.indexOf(term) !== -1 ||
+                            host.indexOf(term) !== -1 || alias.indexOf(term) !== -1 || vName.indexOf(term) !== -1);
+                }
+                return true;
             });
             clientTableWrapper.innerHTML = '';
             clientTableWrapper.appendChild(self.buildClientTable(filtered));
         }
+
+        filterAll.addEventListener('click', function() {
+            self.clientTypeFilter = 'all';
+            updateClientList();
+            self.renderClientsPane(container);
+        });
+        filterWifi.addEventListener('click', function() {
+            self.clientTypeFilter = 'wifi';
+            updateClientList();
+            self.renderClientsPane(container);
+        });
+        filterWired.addEventListener('click', function() {
+            self.clientTypeFilter = 'wired';
+            updateClientList();
+            self.renderClientsPane(container);
+        });
+        filterActive.addEventListener('click', function() {
+            self.clientTypeFilter = 'active';
+            updateClientList();
+            self.renderClientsPane(container);
+        });
+        filterBlocked.addEventListener('click', function() {
+            self.clientTypeFilter = 'blocked';
+            updateClientList();
+            self.renderClientsPane(container);
+        });
 
         searchInput.addEventListener('input', function(e) {
             self.clientSearchTerm = e.target.value.trim();
@@ -778,12 +1063,17 @@ return view.extend({
         updateClientList();
 
         var clientCard = E('div', { 'class': 'gn-card', 'style': 'margin-bottom:20px;' }, [
-            E('div', { 'class': 'gn-card-header', 'style': 'display:flex;justify-content:space-between;align-items:center;flex-wrap:gap:12px;' }, [
+            E('div', { 'class': 'gn-card-header', 'style': 'display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;' }, [
                 E('div', { 'class': 'gn-card-title' }, [
                     svgIcon('users', 16, '#10b981'),
-                    E('span', {}, _('Connected Clients & ARP Security Table'))
+                    E('span', {}, _('Connected Clients, Device Telemetry & Access Control'))
                 ]),
-                E('div', { 'style': 'display:flex;gap:10px;align-items:center;' }, [
+                E('div', { 'style': 'display:flex;gap:8px;align-items:center;flex-wrap:wrap;' }, [
+                    filterAll,
+                    filterWifi,
+                    filterWired,
+                    filterActive,
+                    filterBlocked,
                     searchInput,
                     btnScanNow
                 ])
@@ -791,27 +1081,10 @@ return view.extend({
             clientTableWrapper
         ]);
 
-        // Security Guidance Card
-        var adviceCard = E('div', { 'class': 'gn-card gn-banner-card' }, [
-            E('div', { 'style': 'display:flex;align-items:flex-start;gap:14px;' }, [
-                E('div', { 'class': 'gn-icon-box', 'style': 'margin-top:2px;' }, svgIcon('shield', 22, '#6366f1')),
-                E('div', {}, [
-                    E('h4', { 'style': 'margin:0 0 6px 0;font-size:15px;color:var(--gn-text-main);font-weight:700;' },
-                        _('Security Recommendation: Hostname Identification & Network Isolation')
-                    ),
-                    E('p', { 'style': 'margin:0;font-size:13px;color:var(--gn-text-muted);line-height:1.5;' },
-                        _('Assign static DHCP leases with descriptive hostnames for all home and office hardware. Isolate IoT gadgets and guest visitors into dedicated VLAN zones to restrict lateral access to critical network resources.')
-                    )
-                ])
-            ])
-        ]);
-
         container.appendChild(metricGrid);
         container.appendChild(clientCard);
-        container.appendChild(adviceCard);
     },
 
-    // =========================================================================
     // TAB 5: SETTINGS RENDERER
     // =========================================================================
     renderSettingsPane: function(container) {
@@ -1161,70 +1434,233 @@ return view.extend({
 
     // Client Table (used in Tab 4)
     buildClientTable: function(clients) {
+        var self = this;
         if (!clients || clients.length === 0) {
-            return E('div', { 'style': 'padding:32px;text-align:center;color:var(--gn-text-muted);' }, [
-                E('div', { 'style': 'font-size:28px;margin-bottom:8px;' }, '??'),
-                E('div', { 'style': 'font-weight:600;font-size:14px;' }, _('No Active ARP Clients Found')),
-                E('div', { 'style': 'font-size:12px;margin-top:4px;' }, _('Click "Scan Now" to query the network.'))
+            return E('div', { 'style': 'padding:48px 24px;text-align:center;color:var(--gn-text-muted);' }, [
+                E('div', { 'style': 'font-size:36px;margin-bottom:10px;' }, '🔍'),
+                E('div', { 'style': 'font-weight:700;font-size:16px;color:var(--gn-text-main);' }, _('No Matching Network Clients Found')),
+                E('div', { 'style': 'font-size:13px;margin-top:6px;color:var(--gn-text-muted);' }, _('Click "Scan Network" to refresh ARP cache and wireless associations.'))
             ]);
         }
+
+        var agUrl = self.getAdGuardUrl();
 
         return E('table', { 'class': 'gn-table' }, [
             E('thead', {}, [
                 E('tr', {}, [
-                    E('th', {}, _('Risk')),
-                    E('th', {}, _('IP Address')),
-                    E('th', {}, _('MAC Address')),
-                    E('th', {}, _('Hostname')),
-                    E('th', {}, _('Interface')),
-                    E('th', {}, _('Status')),
-                    E('th', {}, _('Assessment'))
+                    E('th', { 'style': 'width:38%;' }, _('Device & Network Identity')),
+                    E('th', { 'style': 'width:18%;' }, _('Connection & Link')),
+                    E('th', { 'style': 'width:18%;' }, _('Data Traffic')),
+                    E('th', { 'style': 'width:10%;text-align:center;' }, _('Status')),
+                    E('th', { 'style': 'width:16%;text-align:right;' }, _('Quick Actions'))
                 ])
             ]),
             E('tbody', {}, clients.map(function(c) {
-                var risk = assessClientRisk(c);
-                var hostname = (c.hostname && c.hostname !== '*' && c.hostname !== 'Unknown') ? c.hostname : _('Unknown Device');
+                var vendorInfo = identifyDeviceVendor(c);
+                var rawHostname = (c.hostname && c.hostname !== '*' && c.hostname !== 'Unknown') ? c.hostname : '';
+                var hasAlias = Boolean(c.custom_name && c.custom_name.trim());
+                var displayName = hasAlias ? c.custom_name.trim() : (rawHostname || _('Unknown Device'));
+                var isWifi = (c.conn_type === 'wifi');
+                var band = c.wifi_band || (isWifi ? 'Wi-Fi' : '');
+                var signal = c.wifi_signal || '';
+                var sessions = c.sessions || 0;
+                var isBlocked = Boolean(c.is_blocked);
+                var isStatic = Boolean(c.is_static);
 
-                return E('tr', {}, [
-                    E('td', { 'style': 'text-align:center;' }, [
-                        E('span', {
-                            'class': 'gn-risk-dot',
-                            'style': 'background:' + risk.color + ';',
-                            'title': risk.label + ' - ' + risk.reason
-                        })
+                // --- 1. DEVICE & NETWORK IDENTITY CELL ---
+                var iconBox = E('div', {
+                    'class': 'gn-icon-box',
+                    'style': 'width:38px;height:38px;border-radius:10px;flex-shrink:0;background:' +
+                             (isBlocked ? 'rgba(239,68,68,0.1)' : 'rgba(99,102,241,0.08)') +
+                             ';border:1px solid ' +
+                             (isBlocked ? 'rgba(239,68,68,0.25)' : 'rgba(99,102,241,0.2)') + ';'
+                }, svgIcon(isBlocked ? 'cross' : vendorInfo.icon, 18, isBlocked ? '#ef4444' : '#6366f1'));
+
+                var topNameRow = E('div', { 'style': 'display:flex;align-items:center;gap:8px;flex-wrap:wrap;' }, [
+                    E('span', {
+                        'style': 'font-weight:700;font-size:13.5px;color:' + (hasAlias ? '#818cf8' : 'var(--gn-text-main)') + ';'
+                    }, displayName),
+                    hasAlias ? E('span', { 'class': 'gn-badge gn-badge-accent', 'style': 'font-size:10px;padding:1px 6px;line-height:1.2;' }, _('Alias')) : null,
+                    E('button', {
+                        'class': 'gn-btn gn-btn-sec',
+                        'style': 'padding:1px 5px;line-height:1;font-size:11px;border-radius:4px;',
+                        'title': _('Edit Device Nickname'),
+                        'click': function(ev) {
+                            ev.stopPropagation();
+                            self.handleEditNickname(c);
+                        }
+                    }, '✏️')
+                ]);
+
+                var bottomMetaRow = E('div', {
+                    'style': 'display:flex;align-items:center;gap:7px;font-size:11px;color:var(--gn-text-muted);margin-top:4px;flex-wrap:wrap;'
+                }, [
+                    E('span', { 'class': 'gn-badge gn-badge-muted', 'style': 'font-size:10px;padding:1px 6px;' }, vendorInfo.vendor),
+                    E('div', { 'style': 'display:inline-flex;align-items:center;gap:4px;' }, [
+                        E('code', { 'class': 'gn-code' }, c.ip),
+                        E('button', {
+                            'class': 'gn-btn gn-btn-sec',
+                            'style': 'padding:1px 4px;line-height:1;border-radius:3px;',
+                            'title': _('Copy IP'),
+                            'click': function(ev) {
+                                ev.stopPropagation();
+                                if (navigator.clipboard) {
+                                    navigator.clipboard.writeText(c.ip);
+                                    ui.addNotification(null, E('p', {}, _('Copied IP ') + c.ip), 2000);
+                                }
+                            }
+                        }, svgIcon('copy', 10))
                     ]),
-                    E('td', { 'style': 'font-weight:600;' }, [
-                        E('code', { 'class': 'gn-code' }, c.ip)
-                    ]),
-                    E('td', {}, [
-                        E('code', { 'class': 'gn-code gn-code-mac' }, (c.mac || '').toUpperCase())
-                    ]),
-                    E('td', { 'style': 'color:var(--gn-text-main);font-weight:500;' }, hostname),
-                    E('td', {}, [
-                        E('span', { 'class': 'gn-badge gn-badge-muted' }, c.iface || 'br-lan')
-                    ]),
-                    E('td', {}, [
-                        E('span', { 'class': 'gn-pill gn-pill-success' }, [
-                            E('span', { 'class': 'gn-pulse-dot gn-dot-green' }),
-                            _('Online')
-                        ])
-                    ]),
-                    E('td', {}, [
-                        E('span', { 'class': 'gn-pill ' + risk.badgeClass }, risk.label)
+                    isStatic ? E('span', {
+                        'class': 'gn-pill gn-pill-success gn-pill-xs',
+                        'style': 'cursor:pointer;',
+                        'title': _('Static Lease: Click to release/remove reservation'),
+                        'click': function(ev) {
+                            ev.stopPropagation();
+                            self.handleToggleStaticReservation(c);
+                        }
+                    }, '📌 ' + _('Static')) : E('span', {
+                        'class': 'gn-link-btn',
+                        'title': _('Click to lock this IP as a permanent static lease'),
+                        'click': function(ev) {
+                            ev.stopPropagation();
+                            self.handleToggleStaticReservation(c);
+                        }
+                    }, '+ ' + _('Reserve IP')),
+                    E('code', { 'class': 'gn-code gn-code-mac', 'style': 'font-size:11px;' }, (c.mac || '').toUpperCase()),
+                    (hasAlias && rawHostname) ? E('span', { 'style': 'color:var(--gn-text-dim);' }, '(' + rawHostname + ')') : null
+                ]);
+
+                var deviceCol = E('div', { 'style': 'display:flex;align-items:center;gap:12px;' }, [
+                    iconBox,
+                    E('div', { 'style': 'min-width:0;' }, [
+                        topNameRow,
+                        bottomMetaRow
                     ])
+                ]);
+
+                // --- 2. CONNECTION & LINK CELL ---
+                var connCol;
+                if (isWifi) {
+                    var sigNum = parseInt(signal, 10);
+                    var sigPillClass = 'gn-pill-success';
+                    if (sigNum < -72) sigPillClass = 'gn-pill-danger';
+                    else if (sigNum < -62) sigPillClass = 'gn-pill-warning';
+
+                    var speedDetails = [];
+                    if (c.tx_rate) {
+                        var cleanRate = c.tx_rate.split(',')[0].trim();
+                        speedDetails.push('⚡ ' + cleanRate);
+                    }
+                    if (c.conn_time) {
+                        var dur = formatDuration(c.conn_time);
+                        if (dur) speedDetails.push('⏱️ ' + dur);
+                    }
+
+                    connCol = E('div', {}, [
+                        E('div', { 'style': 'display:flex;align-items:center;gap:6px;' }, [
+                            E('span', { 'class': 'gn-pill ' + sigPillClass, 'style': 'font-size:11px;display:inline-flex;align-items:center;gap:5px;' }, [
+                                svgIcon('wifi', 12),
+                                E('span', {}, band + (signal ? (' ' + signal) : ''))
+                            ])
+                        ]),
+                        speedDetails.length ? E('div', { 'style': 'font-size:11px;color:var(--gn-text-muted);margin-top:4px;' }, speedDetails.join(' • ')) : null
+                    ]);
+                } else {
+                    connCol = E('div', {}, [
+                        E('span', { 'class': 'gn-pill gn-pill-muted', 'style': 'font-size:11px;display:inline-flex;align-items:center;gap:5px;' }, [
+                            svgIcon('network', 12),
+                            E('span', {}, _('Wired LAN'))
+                        ]),
+                        E('div', { 'style': 'font-size:11px;color:var(--gn-text-dim);margin-top:4px;' }, _('Ethernet port'))
+                    ]);
+                }
+
+                // --- 3. DATA TRAFFIC CELL ---
+                var rxFmt = formatBytes(c.rx_bytes);
+                var txFmt = formatBytes(c.tx_bytes);
+
+                var trafficCol = E('div', {}, [
+                    E('div', { 'style': 'font-size:12px;font-weight:700;display:flex;align-items:center;gap:8px;' }, [
+                        E('span', { 'style': 'color:#10b981;', 'title': _('Total Download') }, '⬇ ' + txFmt),
+                        E('span', { 'style': 'color:#38bdf8;', 'title': _('Total Upload') }, '⬆ ' + rxFmt)
+                    ]),
+                    E('div', { 'style': 'font-size:11px;color:var(--gn-text-dim);margin-top:4px;' },
+                        sessions > 0 ? (fmtNum(sessions) + ' ' + _('conntrack sessions')) : _('Idle (0 sessions)')
+                    )
+                ]);
+
+                // --- 4. STATUS CELL ---
+                var statusCol = E('div', { 'style': 'text-align:center;' }, [
+                    isBlocked ? E('span', { 'class': 'gn-pill gn-pill-danger', 'style': 'font-size:10px;padding:3px 8px;' }, [
+                        E('span', { 'class': 'gn-pulse-dot gn-dot-red' }),
+                        _('PAUSED')
+                    ]) : E('span', { 'class': 'gn-pill gn-pill-success', 'style': 'font-size:10px;padding:3px 8px;' }, [
+                        E('span', { 'class': 'gn-pulse-dot gn-dot-green' }),
+                        _('ONLINE')
+                    ])
+                ]);
+
+                // --- 5. QUICK ACTIONS CELL ---
+                var searchTarget = rawHostname ? ((rawHostname.indexOf('.') !== -1) ? rawHostname : (rawHostname + '.lan')) : c.ip;
+                var clientDnsUrl = agUrl + '/#logs?response_status=all&search=' + encodeURIComponent('"' + searchTarget + '"');
+
+                var actionsCol = E('div', { 'style': 'display:flex;align-items:center;justify-content:flex-end;gap:8px;' }, [
+                    isBlocked ? E('button', {
+                        'class': 'gn-btn gn-btn-success gn-btn-sm',
+                        'style': 'padding:4px 10px;font-size:12px;display:inline-flex;align-items:center;gap:5px;',
+                        'title': _('Restore external internet access for this client'),
+                        'click': function(ev) {
+                            ev.stopPropagation();
+                            self.handleToggleInternet(c, ev.currentTarget);
+                        }
+                    }, [
+                        E('span', {}, '▶ ' + _('Resume'))
+                    ]) : E('button', {
+                        'class': 'gn-btn gn-btn-danger-outline gn-btn-sm',
+                        'style': 'padding:4px 10px;font-size:12px;display:inline-flex;align-items:center;gap:5px;',
+                        'title': _('Pause external internet access for this client'),
+                        'click': function(ev) {
+                            ev.stopPropagation();
+                            self.handleToggleInternet(c, ev.currentTarget);
+                        }
+                    }, [
+                        E('span', {}, '⏸ ' + _('Pause'))
+                    ]),
+
+                    E('a', {
+                        'href': clientDnsUrl,
+                        'target': '_blank',
+                        'class': 'gn-btn gn-btn-sec gn-btn-sm',
+                        'style': 'text-decoration:none;display:inline-flex;align-items:center;gap:5px;font-size:12px;padding:4px 10px;',
+                        'title': _('Inspect real-time DNS queries in AdGuard Home')
+                    }, [
+                        svgIcon('search', 12, '#6366f1'),
+                        E('span', {}, _('DNS Logs ↗'))
+                    ])
+                ]);
+
+                return E('tr', {
+                    'class': 'gn-client-row' + (isBlocked ? ' gn-client-row-paused' : '')
+                }, [
+                    E('td', {}, [deviceCol]),
+                    E('td', {}, [connCol]),
+                    E('td', {}, [trafficCol]),
+                    E('td', {}, [statusCol]),
+                    E('td', {}, [actionsCol])
                 ]);
             }))
         ]);
     },
 
-    // =========================================================================
+        // =========================================================================
     // TAB SWITCHING LOGIC
     // =========================================================================
     switchTab: function(targetTab) {
         var self = this;
         self.activeTab = targetTab;
 
-        var tabs = ['adguard', 'firewall', 'clients', 'settings'];
+        var tabs = ['clients', 'adguard', 'firewall', 'settings'];
         tabs.forEach(function(t) {
             var btn = document.getElementById('gn-tab-btn-' + t);
             var pane = document.getElementById('gn-pane-' + t);
@@ -1233,15 +1669,15 @@ return view.extend({
         });
 
         // Tab-specific rendering on activation
-        if (targetTab === 'adguard') {
+        if (targetTab === 'clients') {
+            var pc = document.getElementById('gn-pane-clients');
+            if (pc) self.renderClientsPane(pc);
+        } else if (targetTab === 'adguard') {
             var pa = document.getElementById('gn-pane-adguard');
             if (pa) self.renderAdGuardPane(pa);
         } else if (targetTab === 'firewall') {
             var pf = document.getElementById('gn-pane-firewall');
             if (pf) self.renderFirewallPane(pf);
-        } else if (targetTab === 'clients') {
-            var pc = document.getElementById('gn-pane-clients');
-            if (pc) self.renderClientsPane(pc);
         } else if (targetTab === 'settings') {
             var ps = document.getElementById('gn-pane-settings');
             if (ps) self.renderSettingsPane(ps);
@@ -1388,6 +1824,17 @@ return view.extend({
             '.gn-input:focus { border-color:var(--gn-accent); }',
             '.gn-select { background:var(--gn-card-bg); border:1px solid var(--gn-card-border); border-radius:6px; color:var(--gn-text-main); padding:6px 12px; font-size:12px; outline:none; }',
 
+            /* Client Row & Button Utilities */
+            '.gn-btn-danger-outline { background:transparent; color:#ef4444; border:1px solid rgba(239,68,68,0.35); }',
+            '.gn-btn-danger-outline:hover { background:rgba(239,68,68,0.12); border-color:#ef4444; }',
+            '.gn-btn-success { background:#10b981; color:#ffffff; }',
+            '.gn-btn-success:hover { background:#059669; }',
+            '.gn-pill-xs { padding:2px 7px; font-size:10px; font-weight:700; }',
+            '.gn-link-btn { color:var(--gn-accent); text-decoration:none; font-weight:600; font-size:11px; cursor:pointer; }',
+            '.gn-link-btn:hover { text-decoration:underline; }',
+            '.gn-client-row { transition:background 0.15s ease; }',
+            '.gn-client-row:hover td { background:var(--gn-table-row-hover); }',
+            '.gn-client-row-paused { background:rgba(239,68,68,0.035) !important; }',
             /* Table Styles */
             '.gn-table-container { width:100%; overflow-x:auto; }',
             '.gn-table { width:100%; border-collapse:collapse; text-align:left; font-size:13px; }',
@@ -1403,6 +1850,8 @@ return view.extend({
             '.gn-pulse-dot { width:8px; height:8px; border-radius:50%; display:inline-block; }',
             '.gn-dot-green { background:#10b981; box-shadow:0 0 8px rgba(16,185,129,0.8); animation:gnPulse 2s infinite; }',
             '.gn-dot-red { background:#ef4444; }',
+            '.gn-dot-amber { background:#f59e0b; }',
+            '.gn-dot-blue { background:#06b6d4; box-shadow:0 0 8px rgba(6,182,212,0.8); animation:gnPulse 2s infinite; }',
             '.gn-risk-dot { width:10px; height:10px; border-radius:50%; display:inline-block; }',
 
             /* Animations */
@@ -1432,7 +1881,7 @@ return view.extend({
                 E('div', {}, [
                     E('div', { 'style': 'display:flex;align-items:center;gap:8px;' }, [
                         E('h1', { 'class': 'gn-title' }, 'Guardian Onyx'),
-                        E('span', { 'class': 'gn-badge gn-badge-accent', 'style': 'font-size:11px;padding:2px 8px;' }, 'v1.0.2')
+                        E('span', { 'class': 'gn-badge gn-badge-accent', 'style': 'font-size:11px;padding:2px 8px;' }, 'v1.2.1')
                     ]),
                     E('p', { 'class': 'gn-subtitle' }, _('OpenWrt Unified Security, AdGuard Home & Firewall Monitoring'))
                 ])
@@ -1446,10 +1895,18 @@ return view.extend({
             ])
         ]);
 
-        // Tab Navigation Buttons (4 Tabs)
+        // Tab Navigation Buttons (4 Tabs - Connected Clients first)
+        var tabBtnClients = E('button', {
+            'id': 'gn-tab-btn-clients',
+            'class': 'gn-tab-btn active'
+        }, [
+            svgIcon('users', 15),
+            E('span', {}, _('Connected Clients'))
+        ]);
+
         var tabBtnAdguard = E('button', {
             'id': 'gn-tab-btn-adguard',
-            'class': 'gn-tab-btn active'
+            'class': 'gn-tab-btn'
         }, [
             svgIcon('shield', 15),
             E('span', {}, _('AdGuard Home'))
@@ -1463,14 +1920,6 @@ return view.extend({
             E('span', {}, _('Firewall'))
         ]);
 
-        var tabBtnClients = E('button', {
-            'id': 'gn-tab-btn-clients',
-            'class': 'gn-tab-btn'
-        }, [
-            svgIcon('users', 15),
-            E('span', {}, _('Connected Clients'))
-        ]);
-
         var tabBtnSettings = E('button', {
             'id': 'gn-tab-btn-settings',
             'class': 'gn-tab-btn'
@@ -1479,34 +1928,34 @@ return view.extend({
             E('span', {}, _('Settings'))
         ]);
 
+        tabBtnClients.addEventListener('click', function() { self.switchTab('clients'); });
         tabBtnAdguard.addEventListener('click', function() { self.switchTab('adguard'); });
         tabBtnFirewall.addEventListener('click', function() { self.switchTab('firewall'); });
-        tabBtnClients.addEventListener('click', function() { self.switchTab('clients'); });
         tabBtnSettings.addEventListener('click', function() { self.switchTab('settings'); });
 
         var navTabs = E('div', { 'class': 'gn-nav-tabs' }, [
+            tabBtnClients,
             tabBtnAdguard,
             tabBtnFirewall,
-            tabBtnClients,
             tabBtnSettings
         ]);
 
-        // Content Panes
-        var paneAdguard = E('div', { 'id': 'gn-pane-adguard', 'style': 'display:block;' });
+        // Content Panes (Connected Clients active initially)
+        var paneClients = E('div', { 'id': 'gn-pane-clients', 'style': 'display:block;' });
+        var paneAdguard = E('div', { 'id': 'gn-pane-adguard', 'style': 'display:none;' });
         var paneFirewall = E('div', { 'id': 'gn-pane-firewall', 'style': 'display:none;' });
-        var paneClients = E('div', { 'id': 'gn-pane-clients', 'style': 'display:none;' });
         var paneSettings = E('div', { 'id': 'gn-pane-settings', 'style': 'display:none;' });
 
         // Initial Pane Render
-        self.renderAdGuardPane(paneAdguard);
+        self.renderClientsPane(paneClients);
 
         // Assembly
         wrapper.appendChild(styleNode);
         wrapper.appendChild(header);
         wrapper.appendChild(navTabs);
+        wrapper.appendChild(paneClients);
         wrapper.appendChild(paneAdguard);
         wrapper.appendChild(paneFirewall);
-        wrapper.appendChild(paneClients);
         wrapper.appendChild(paneSettings);
 
         // Setup Polling every 10 seconds
