@@ -1,0 +1,16 @@
+# Force Unix line endings for shell scripts and source files
+* text eol=lf
+*.sh text eol=lf
+Makefile text eol=lf
+*.json text eol=lf
+*.js text eol=lf
+
+# Binary file types - prevent line ending conversion
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.apk binary
+*.tar.gz binary
+*.tgz binary

@@ -1,0 +1,31 @@
+{
+    "luci-app-guardian-onyx": {
+        "description": "Grant access to Guardian security suite - AdGuard, Firewall, and threat monitoring",
+        "read": {
+            "file": {
+                "/usr/libexec/guardian-action.sh": [ "exec" ],
+                "/tmp/guardian_state.json": [ "read" ],
+                "/tmp/adguard_stats.json": [ "read" ],
+                "/etc/guardian_events.json": [ "read" ],
+                "/etc/guardian_credentials.json": [ "read" ]
+            },
+            "ubus": {
+                "file": [ "read", "exec" ],
+                "network.interface": [ "status" ],
+                "luci-rpc": [ "getNetworkDevices", "getDHCPLeases" ]
+            },
+            "uci": [ "guardian", "firewall", "network", "dhcp" ]
+        },
+        "write": {
+            "file": {
+                "/usr/libexec/guardian-action.sh": [ "exec" ],
+                "/etc/guardian_events.json": [ "write" ],
+                "/etc/guardian_credentials.json": [ "write" ]
+            },
+            "ubus": {
+                "file": [ "exec" ]
+            },
+            "uci": [ "guardian", "firewall" ]
+        }
+    }
+}

@@ -1,0 +1,23 @@
+{
+    "admin/onyx": {
+        "title": "Onyx Tools",
+        "order": 45,
+        "action": {
+            "type": "firstchild",
+            "recurse": true
+        }
+    },
+    "admin/onyx/guardian": {
+        "title": "Guardian Security",
+        "order": 10,
+        "action": {
+            "type": "view",
+            "path": "guardian/index"
+        },
+        "depends": {
+            "acl": [
+                "luci-app-guardian-onyx"
+            ]
+        }
+    }
+}
