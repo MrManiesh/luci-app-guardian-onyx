@@ -28,14 +28,9 @@ Unified Security, AdGuard Home DNS Filtering & Firewall Dashboard for OpenWrt & 
 
 ---
 
-### Installation via APK (OpenWrt 24.10+ / ImmortalWrt 25.x):
+### Installation (APK for OpenWrt 24.10+ / ImmortalWrt 25.x):
 ```sh
 # Download and install the package
 wget -O /tmp/luci-app-guardian-onyx-1.3.1.apk https://github.com/MrManiesh/luci-app-guardian-onyx/releases/download/v1.3.1/luci-app-guardian-onyx-1.3.1.apk
 apk add --allow-untrusted /tmp/luci-app-guardian-onyx-1.3.1.apk
-```
-
-### Installation via IPK (OpenWrt 23.05 & opkg systems):
-```sh
-opkg install /tmp/luci-app-guardian-onyx_1.3.1_all.ipk
 ```
