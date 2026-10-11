@@ -69,11 +69,12 @@ Monitor, configure, and fine-tune your network-wide DNS ad-blocking and privacy 
 
 ### 3. OpenWrt Firewall Engine
 
-Transparent visibility into Linux kernel packet filtering and network security policies.
+Transparent visibility and active control over Linux kernel packet filtering, DoS defenses, and socket connections.
 
 | Feature | Description |
 |---|---|
-| **Engine Status & Telemetry** | Displays active firewall subsystem (`nftables` / `fw4`) and live conntrack session count. |
+| **🛡️ Perimeter Hardening Shields** | 1-click toggles for **SYN Flood protection**, **Drop Invalid Packets**, **WAN Ping Stealth**, **TCP MSS Clamping**, and **Full-Cone NAT** with built-in explanatory guides. |
+| **⚡ Live Conntrack Sessions Inspector** | Real-time active socket telemetry across all devices with client identity mapping, protocol filters (TCP, UDP, Established, External WAN), and well-known port hints (`:443 HTTPS`, `:53 DNS`, etc.). |
 | **Firewall Security Zones** | Clear breakdown of `lan`, `wan`, and custom zones with policy badges (`ACCEPT`, `DROP`, `REJECT`). |
 | **Port Forwarding (DNAT)** | Full inspector for active WAN-to-LAN port redirects and NAT configurations. |
 | **1-Click Firewall Reload** | Safely flush and reload the firewall ruleset (`fw4 reload`) with live feedback. |
@@ -89,6 +90,7 @@ Effortless connection between LuCI and your AdGuard Home instance.
 | **Configurable Endpoints** | Custom AdGuard Host IP and Web UI Port (e.g. `127.0.0.1:8080`, `192.168.1.1:3000`). |
 | **⚡ Retrieve from File** | 1-click auto-discovery reads stored credentials directly from `/etc/guardian_credentials.json` or `adguardhome.yaml`. |
 | **Live Connection Test** | Verify API connectivity and ping response times before saving. |
+| **🚀 Built-in Update Detection** | 1-click check for updates against GitHub Releases with release notes, copyable SSH command, and direct LuCI in-app update. |
 | **Secure UCI Storage** | Settings are saved directly to `/etc/config/guardian` with restricted permissions (`chmod 0600`). |
 
 ---
@@ -107,11 +109,11 @@ apk update && apk add curl ca-bundle jq
 Download and install the official package directly on your router via SSH:
 
 ```sh
-# Download the latest v1.3.1 release
-wget -O /tmp/luci-app-guardian-onyx-1.3.1.apk https://github.com/MrManiesh/luci-app-guardian-onyx/releases/download/v1.3.1/luci-app-guardian-onyx-1.3.1.apk
+# Download the latest v1.4.1 release
+wget -O /tmp/luci-app-guardian-onyx-1.4.1.apk https://github.com/MrManiesh/luci-app-guardian-onyx/releases/download/v1.4.1/luci-app-guardian-onyx-1.4.1.apk
 
 # Install the package
-apk add --allow-untrusted /tmp/luci-app-guardian-onyx-1.3.1.apk
+apk add --allow-untrusted /tmp/luci-app-guardian-onyx-1.4.1.apk
 ```
 
 ### 3. Access Guardian Onyx

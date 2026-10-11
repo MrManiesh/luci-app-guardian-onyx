@@ -708,6 +708,127 @@ cmd_adguard_set_client_services() {
     fi
 }
 
+cmd_firewall_hardening() {
+    local wan_sec=$(uci show firewall 2>/dev/null | grep -E '\.name=.wan.' | head -n1 | cut -d. -f2)
+    local synflood=$(uci -q get firewall.@defaults[0].synflood_protect || echo 0)
+    local drop_inv=$(uci -q get firewall.@defaults[0].drop_invalid || echo 0)
+    local fullcone=$(uci -q get firewall.@defaults[0].fullcone || echo 0)
+    local mtu_fix=0
+    [ -n "$wan_sec" ] && mtu_fix=$(uci -q get "firewall.$wan_sec.mtu_fix" || echo 0)
+
+    local ping_sec=$(uci show firewall 2>/dev/null | grep -E '\.name=.Allow-Ping.' | head -n1 | cut -d. -f2)
+    local ping_enabled=1
+    if [ -n "$ping_sec" ]; then
+        local pval=$(uci -q get "firewall.$ping_sec.enabled")
+        if [ "$pval" = "0" ]; then ping_enabled=0; fi
+    fi
+    local stealth=0
+    [ "$ping_enabled" = "0" ] && stealth=1
+
+    printf '{"result":"ok","synflood_protect":%d,"drop_invalid":%d,"fullcone":%d,"mtu_fix":%d,"wan_ping":%d,"stealth_mode":%d}\n' \
+        "${synflood:-0}" "${drop_inv:-0}" "${fullcone:-0}" "${mtu_fix:-0}" "${ping_enabled:-1}" "${stealth:-0}"
+}
+
+cmd_firewall_hardening_set() {
+    local key="$2"
+    local val="$3"
+    local wan_sec=$(uci show firewall 2>/dev/null | grep -E '\.name=.wan.' | head -n1 | cut -d. -f2)
+    local ping_sec=$(uci show firewall 2>/dev/null | grep -E '\.name=.Allow-Ping.' | head -n1 | cut -d. -f2)
+
+    case "$key" in
+        synflood_protect)
+            uci set firewall.@defaults[0].synflood_protect="$val"
+            ;;
+        drop_invalid)
+            uci set firewall.@defaults[0].drop_invalid="$val"
+            ;;
+        fullcone)
+            uci set firewall.@defaults[0].fullcone="$val"
+            ;;
+        mtu_fix)
+            if [ -n "$wan_sec" ]; then
+                uci set "firewall.$wan_sec.mtu_fix"="$val"
+            fi
+            ;;
+        stealth_mode)
+            if [ -n "$ping_sec" ]; then
+                if [ "$val" = "1" ]; then
+                    uci set "firewall.$ping_sec.enabled"=0
+                else
+                    uci set "firewall.$ping_sec.enabled"=1
+                fi
+            fi
+            ;;
+        wan_ping)
+            if [ -n "$ping_sec" ]; then
+                uci set "firewall.$ping_sec.enabled"="$val"
+            fi
+            ;;
+        *)
+            echo '{"result":"error","error":"Unknown hardening key"}'
+            return 1
+            ;;
+    esac
+    uci commit firewall
+    fw4 reload >/dev/null 2>&1 || /etc/init.d/firewall reload >/dev/null 2>&1
+    cmd_firewall_hardening
+}
+
+cmd_conntrack_sessions() {
+    local max="${2:-350}"
+    awk -v max="$max" '
+    BEGIN { printf "{\"result\":\"ok\",\"sessions\":["; count=0 }
+    {
+        proto=""; state=""; src=""; dst=""; sport=""; dport=""; bytes=0; pkts=0;
+        for (i=1; i<=NF; i++) {
+            if ($i ~ /^(tcp|udp|icmp)$/) proto=$i;
+            if ($i ~ /^(ESTABLISHED|TIME_WAIT|CLOSE_WAIT|SYN_SENT|FIN_WAIT|LAST_ACK)$/) state=$i;
+            if ($i ~ /^src=/ && src=="") { split($i, a, "="); src=a[2]; }
+            if ($i ~ /^dst=/ && dst=="") { split($i, a, "="); dst=a[2]; }
+            if ($i ~ /^sport=/ && sport=="") { split($i, a, "="); sport=a[2]; }
+            if ($i ~ /^dport=/ && dport=="") { split($i, a, "="); dport=a[2]; }
+            if ($i ~ /^bytes=/) { split($i, a, "="); bytes+=a[2]; }
+            if ($i ~ /^packets=/) { split($i, a, "="); pkts+=a[2]; }
+        }
+        if (src=="127.0.0.1" && dst=="127.0.0.1") next;
+        if (proto != "" && src != "") {
+            if (count > 0) printf ",";
+            if (!state) state=(proto=="udp"?"UDP":(proto=="icmp"?"ICMP":"ACTIVE"));
+            printf "{\"proto\":\"%s\",\"state\":\"%s\",\"src\":\"%s\",\"sport\":\"%s\",\"dst\":\"%s\",\"dport\":\"%s\",\"bytes\":%d,\"packets\":%d}", proto, state, src, sport, dst, dport, bytes, pkts;
+            count++;
+            if (count >= max) exit;
+        }
+    }
+    END { printf "],\"total\":%d}\n", count }
+    ' /proc/net/nf_conntrack
+}
+
+cmd_check_update() {
+    local out=$(curl -s --connect-timeout 6 --max-time 10 -H "User-Agent: OpenWrt-LuCI-Guardian-Onyx" "https://api.github.com/repos/MrManiesh/luci-app-guardian-onyx/releases/latest" 2>/dev/null)
+    if [ -n "$out" ]; then
+        echo "$out"
+    else
+        echo '{"error":"Failed to connect to GitHub"}'
+    fi
+}
+
+cmd_update_now() {
+    local url="$2"
+    [ -z "$url" ] && echo '{"result":"error","error":"Missing download URL"}' && return
+    local apk_file="/tmp/guardian-onyx-update.apk"
+    rm -f "$apk_file"
+    curl -s -L --connect-timeout 10 --max-time 90 "$url" -o "$apk_file"
+    if [ ! -s "$apk_file" ]; then
+        echo '{"result":"error","error":"Failed to download release package from GitHub"}'
+        return
+    fi
+    local res=$(apk add --allow-untrusted "$apk_file" 2>&1)
+    rm -f "$apk_file"
+    rm -rf /tmp/luci-indexcache /tmp/luci-modulecache
+    /etc/init.d/rpcd reload >/dev/null 2>&1
+    echo '{"result":"ok","output":"Updated successfully"}'
+}
+
 case "$ACTION" in
     status)                     cmd_status ;;
     adguard_stats)              cmd_adguard_stats ;;
@@ -727,6 +848,11 @@ case "$ACTION" in
     firewall_rules)             cmd_firewall_rules ;;
     firewall_zones)             cmd_firewall_zones ;;
     firewall_reload)            cmd_firewall_reload ;;
+    firewall_hardening)         cmd_firewall_hardening ;;
+    firewall_hardening_set)     cmd_firewall_hardening_set "$@" ;;
+    conntrack_sessions)         cmd_conntrack_sessions "$@" ;;
+    check_update)               cmd_check_update ;;
+    update_now)                 cmd_update_now "$@" ;;
     clients)                    cmd_clients ;;
     client_block)               cmd_client_block "$@" ;;
     client_unblock)             cmd_client_unblock "$@" ;;

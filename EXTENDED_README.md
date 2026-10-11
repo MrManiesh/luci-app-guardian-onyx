@@ -46,6 +46,11 @@ It can be run directly from an SSH terminal or invoked by automation scripts:
 | `firewall_rules` | — | JSON Array | Dumps active firewall rules from OpenWrt `fw4` / `nftables` subsystem. |
 | `firewall_zones` | — | JSON Array | Inspects configured UCI firewall zones, interfaces, and default forwarding policies. |
 | `firewall_reload` | — | JSON (`{"result":"ok"}`) | Flushes and safely reloads the system firewall ruleset (`fw4 reload` or `fw3 reload`). |
+| `firewall_hardening` | — | JSON Object | Returns status of kernel defenses (`synflood_protect`, `drop_invalid`, `stealth_mode`, `mtu_fix`, `fullcone`). |
+| `firewall_hardening_set` | `<key> <val>` | JSON Object | Toggles kernel hardening defense in UCI and applies immediately to `fw4`. |
+| `conntrack_sessions` | `[max]` | JSON Object | Returns real-time active socket connection telemetry from kernel `/proc/net/nf_conntrack`. |
+| `check_update` | — | JSON Object | Queries GitHub Releases API for the latest release tag, release notes, and `.apk` assets. |
+| `update_now` | `<download_url>` | JSON (`{"result":"ok"}`) | Downloads release `.apk` to `/tmp`, installs via `apk add --allow-untrusted`, clears LuCI cache, and reloads `rpcd`. |
 
 ---
 

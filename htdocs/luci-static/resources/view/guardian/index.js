@@ -11,6 +11,8 @@
 'require uci';
 
 var ACTION_SCRIPT = '/usr/libexec/guardian-action.sh';
+var GUARDIAN_VERSION = '1.4.1';
+var REPO_URL = 'https://github.com/MrManiesh/luci-app-guardian-onyx';
 
 // Helper: Safely parse JSON strings
 function safeJson(str, fallback) {
@@ -92,7 +94,8 @@ function svgIcon(name, size, color) {
         monitor: '<rect x="2" y="3" width="20" height="14" rx="2" ry="2" fill="none" stroke="' + c + '" stroke-width="2"/><line x1="8" y1="21" x2="16" y2="21" stroke="' + c + '" stroke-width="2"/><line x1="12" y1="17" x2="12" y2="21" stroke="' + c + '" stroke-width="2"/>',
         chip: '<rect x="4" y="4" width="16" height="16" rx="2" fill="none" stroke="' + c + '" stroke-width="2"/><rect x="9" y="9" width="6" height="6" fill="none" stroke="' + c + '" stroke-width="2"/><line x1="9" y1="1" x2="9" y2="4" stroke="' + c + '" stroke-width="2"/><line x1="15" y1="1" x2="15" y2="4" stroke="' + c + '" stroke-width="2"/><line x1="9" y1="20" x2="9" y2="23" stroke="' + c + '" stroke-width="2"/><line x1="15" y1="20" x2="15" y2="23" stroke="' + c + '" stroke-width="2"/><line x1="20" y1="9" x2="23" y2="9" stroke="' + c + '" stroke-width="2"/><line x1="20" y1="15" x2="23" y2="15" stroke="' + c + '" stroke-width="2"/><line x1="1" y1="9" x2="4" y2="9" stroke="' + c + '" stroke-width="2"/><line x1="1" y1="15" x2="4" y2="15" stroke="' + c + '" stroke-width="2"/>',
         copy: '<rect x="9" y="9" width="13" height="13" rx="2" ry="2" fill="none" stroke="' + c + '" stroke-width="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" fill="none" stroke="' + c + '" stroke-width="2"/>',
-        pulse: '<polyline points="22 12 18 12 15 21 9 3 6 12 2 12" fill="none" stroke="' + c + '" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>'
+        pulse: '<polyline points="22 12 18 12 15 21 9 3 6 12 2 12" fill="none" stroke="' + c + '" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>',
+        zap: '<polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" fill="none" stroke="' + c + '" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>'
     };
     var inner = paths[name] || paths['shield'];
     var span = document.createElement('span');
@@ -206,6 +209,7 @@ function formatBytes(bytes) {
     if (i >= sizes.length) i = sizes.length - 1;
     return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
 }
+var fmtBytes = formatBytes;
 
 function formatDuration(s) {
     if (!s || s <= 0) return '';
@@ -238,6 +242,13 @@ return view.extend({
     uciGuardian: {},
     uciFirewall: {},
     clientSearchTerm: '',
+    firewallHardening: {},
+    conntrackSessionsList: [],
+    conntrackFilter: 'all',
+    conntrackSearchTerm: '',
+    conntrackMaxDisplay: 50,
+    isUpdatingHardening: false,
+    isLoadingConntrack: false,
     isTogglingProtection: false,
     isReloadingFirewall: false,
     isScanningClients: false,
@@ -257,7 +268,9 @@ return view.extend({
             uci.load('guardian').catch(function() { return {}; }),
             uci.load('firewall').catch(function() { return {}; }),
             L.resolveDefault(fs.exec(ACTION_SCRIPT, ['adguard_rules']), null),
-            L.resolveDefault(fs.exec(ACTION_SCRIPT, ['adguard_services_list']), null)
+            L.resolveDefault(fs.exec(ACTION_SCRIPT, ['adguard_services_list']), null),
+            L.resolveDefault(fs.exec(ACTION_SCRIPT, ['firewall_hardening']), null),
+            L.resolveDefault(fs.exec(ACTION_SCRIPT, ['conntrack_sessions', '350']), null)
         ]);
     },
 
@@ -297,6 +310,247 @@ return view.extend({
         } catch(e) {
             return false;
         }
+    },
+
+    // =========================================================================
+    // SOFTWARE UPDATE SYSTEM (GitHub Releases Integration)
+    // =========================================================================
+    showUpdateModal: function(title, contentNodes) {
+        var isDark = this.detectThemeIsDark();
+        var wrapper = E('div', {
+            'id': 'gn-modal-wrapper',
+            'class': 'gn-wrapper ' + (isDark ? '' : 'gn-theme-light'),
+            'style': 'color:var(--gn-text-main);box-sizing:border-box;font-family:inherit;padding:4px;'
+        }, contentNodes);
+        return ui.showModal(title, [wrapper]);
+    },
+
+    checkForUpdate: function(triggerBtn) {
+        var self = this;
+        var originalHtml = triggerBtn ? triggerBtn.innerHTML : '';
+        if (triggerBtn) {
+            triggerBtn.disabled = true;
+            triggerBtn.innerHTML = '<span>⏳</span> <span>' + _('Checking...') + '</span>';
+        }
+
+        var currentVer = GUARDIAN_VERSION;
+        var repoUrl = REPO_URL;
+
+        var doCheck = fs.exec(ACTION_SCRIPT, ['check_update']).then(function(res) {
+            var raw = res && res.stdout ? res.stdout.trim() : '';
+            if (raw && raw.indexOf('{') !== -1) {
+                return JSON.parse(raw);
+            }
+            throw new Error('Backend check returned empty');
+        }).catch(function() {
+            return fetch('https://api.github.com/repos/MrManiesh/luci-app-guardian-onyx/releases/latest', {
+                headers: { 'Accept': 'application/vnd.github.v3+json' }
+            }).then(function(r) { return r.json(); });
+        });
+
+        doCheck.then(function(release) {
+            if (triggerBtn) {
+                triggerBtn.disabled = false;
+                triggerBtn.innerHTML = originalHtml;
+            }
+
+            if (!release || release.error || !release.tag_name) {
+                var errMsg = (release && release.message) ? release.message : (release && release.error ? release.error : _('Unable to reach GitHub. Please check router internet connectivity.'));
+                self.showUpdateModal(_('Update Check Failed'), [
+                    E('div', { 'style': 'padding:14px 6px;text-align:center;' }, [
+                        E('div', { 'style': 'font-size:36px;margin-bottom:10px;' }, '⚠️'),
+                        E('h4', { 'style': 'color:var(--gn-text-main);margin:0 0 8px 0;font-weight:700;' }, _('Check Failed')),
+                        E('p', { 'style': 'color:var(--gn-text-muted);font-size:13px;margin:0 0 16px 0;' }, errMsg),
+                        E('div', { 'style': 'display:flex;justify-content:center;gap:10px;' }, [
+                            E('a', {
+                                'href': repoUrl + '/releases',
+                                'target': '_blank',
+                                'class': 'btn cbi-button gn-btn-sec',
+                                'style': 'padding:7px 16px;text-decoration:none;display:inline-flex;align-items:center;gap:6px;'
+                            }, [
+                                E('span', {}, '🌐'),
+                                E('span', {}, _('GitHub Releases'))
+                            ]),
+                            E('button', {
+                                'class': 'btn cbi-button gn-btn-sec',
+                                'click': ui.hideModal,
+                                'style': 'padding:7px 16px;'
+                            }, _('Close'))
+                        ])
+                    ])
+                ]);
+                return;
+            }
+
+            var latestTag = String(release.tag_name || '').trim();
+            var latestClean = latestTag.replace(/^v/, '');
+            var currentClean = currentVer.replace(/^v/, '');
+
+            var isNewer = (latestClean !== currentClean);
+
+            if (!isNewer) {
+                self.showUpdateModal(_('Software Update'), [
+                    E('div', { 'style': 'padding:14px 6px;text-align:center;' }, [
+                        E('div', { 'style': 'width:56px;height:56px;border-radius:50%;background:rgba(16,185,129,0.12);color:#10b981;display:inline-flex;align-items:center;justify-content:center;font-size:28px;margin-bottom:14px;border:1px solid rgba(16,185,129,0.3);' }, '✓'),
+                        E('h3', { 'style': 'color:var(--gn-text-main);margin:0 0 6px 0;font-size:18px;font-weight:700;' }, _('You are up to date!')),
+                        E('div', { 'style': 'display:inline-flex;align-items:center;gap:8px;background:rgba(16,185,129,0.08);padding:6px 14px;border-radius:20px;margin-bottom:14px;border:1px solid rgba(16,185,129,0.2);' }, [
+                            E('span', { 'style': 'font-size:12px;color:var(--gn-text-muted);' }, _('Installed Version:')),
+                            E('strong', { 'style': 'color:#10b981;font-size:13px;' }, 'v' + currentClean)
+                        ]),
+                        E('p', { 'style': 'color:var(--gn-text-muted);font-size:13px;line-height:1.5;margin:0 0 20px 0;' },
+                            _('You are running the latest official release of Guardian Onyx Console.')
+                        ),
+                        E('div', { 'style': 'display:flex;justify-content:center;gap:10px;' }, [
+                            E('a', {
+                                'href': repoUrl + '/releases',
+                                'target': '_blank',
+                                'class': 'btn cbi-button gn-btn-sec',
+                                'style': 'padding:7px 16px;text-decoration:none;display:inline-flex;align-items:center;gap:6px;'
+                            }, [
+                                E('span', {}, '📜'),
+                                E('span', {}, _('Release Notes'))
+                            ]),
+                            E('button', {
+                                'class': 'btn cbi-button cbi-button-action',
+                                'click': ui.hideModal,
+                                'style': 'padding:7px 20px;font-weight:600;'
+                            }, _('Close'))
+                        ])
+                    ])
+                ]);
+            } else {
+                var apkAsset = null;
+                if (Array.isArray(release.assets)) {
+                    apkAsset = release.assets.find(function(a) { return a.name && a.name.endsWith('.apk'); });
+                }
+
+                var downloadUrl = apkAsset ? apkAsset.browser_download_url : (repoUrl + '/releases/download/' + latestTag + '/luci-app-guardian-onyx-' + latestClean + '.apk');
+                var apkFileName = apkAsset ? apkAsset.name : ('luci-app-guardian-onyx-' + latestClean + '.apk');
+
+                var updateCmd = 'cd /tmp && wget -O ' + apkFileName + ' ' + downloadUrl + ' && apk add --allow-untrusted ./' + apkFileName;
+
+                var btnCopyCmd = E('button', {
+                    'class': 'btn cbi-button gn-btn-sec',
+                    'style': 'padding:7px 14px;font-size:12px;display:inline-flex;align-items:center;gap:6px;cursor:pointer;'
+                }, [
+                    E('span', {}, '📋'),
+                    E('span', {}, _('Copy Command'))
+                ]);
+
+                btnCopyCmd.addEventListener('click', function() {
+                    if (navigator.clipboard && navigator.clipboard.writeText) {
+                        navigator.clipboard.writeText(updateCmd).then(function() {
+                            btnCopyCmd.innerHTML = '<span>✓</span> <span>' + _('Copied!') + '</span>';
+                            setTimeout(function() {
+                                btnCopyCmd.innerHTML = '<span>📋</span> <span>' + _('Copy Command') + '</span>';
+                            }, 2500);
+                        });
+                    } else {
+                        var ta = document.createElement('textarea');
+                        ta.value = updateCmd;
+                        document.body.appendChild(ta);
+                        ta.select();
+                        document.execCommand('copy');
+                        document.body.removeChild(ta);
+                        btnCopyCmd.innerHTML = '<span>✓</span> <span>' + _('Copied!') + '</span>';
+                        setTimeout(function() {
+                            btnCopyCmd.innerHTML = '<span>📋</span> <span>' + _('Copy Command') + '</span>';
+                        }, 2500);
+                    }
+                });
+
+                var btnUpdateNow = E('button', {
+                    'class': 'btn cbi-button cbi-button-action',
+                    'style': 'padding:7px 14px;font-size:12px;display:inline-flex;align-items:center;gap:6px;cursor:pointer;'
+                }, [
+                    E('span', {}, '⚡'),
+                    E('span', {}, _('Update Now via LuCI'))
+                ]);
+
+                btnUpdateNow.addEventListener('click', function() {
+                    btnUpdateNow.disabled = true;
+                    btnUpdateNow.innerHTML = '<span>⏳</span> <span>' + _('Updating...') + '</span>';
+                    fs.exec(ACTION_SCRIPT, ['update_now', downloadUrl]).then(function(res) {
+                        var raw = res && res.stdout ? res.stdout.trim() : '';
+                        var r = safeJson(raw, {});
+                        if (r.result === 'ok') {
+                            ui.addNotification(null, E('p', {}, _('Guardian Onyx updated successfully! Reloading in 3 seconds...')), 5000);
+                            setTimeout(function() { window.location.reload(); }, 3000);
+                        } else {
+                            throw new Error(r.error || raw || _('Installation failed'));
+                        }
+                    }).catch(function(err) {
+                        btnUpdateNow.disabled = false;
+                        btnUpdateNow.innerHTML = '<span>⚡</span> <span>' + _('Update Now via LuCI') + '</span>';
+                        ui.addNotification(null, E('p', {}, _('Update failed: ') + (err.message || err)), 5000);
+                    });
+                });
+
+                var bodyText = (release.body || '').trim();
+                if (bodyText.length > 300) {
+                    bodyText = bodyText.substring(0, 300) + '...';
+                }
+
+                self.showUpdateModal(_('Update Available! 🚀'), [
+                    E('div', { 'style': 'padding:8px 4px;' }, [
+                        E('div', { 'style': 'display:flex;align-items:center;gap:12px;margin-bottom:14px;' }, [
+                            E('div', { 'style': 'width:46px;height:46px;border-radius:12px;background:rgba(99,102,241,0.12);color:#6366f1;display:flex;align-items:center;justify-content:center;font-size:24px;border:1px solid rgba(99,102,241,0.3);flex-shrink:0;' }, '🚀'),
+                            E('div', {}, [
+                                E('h3', { 'style': 'color:var(--gn-text-main);margin:0 0 4px 0;font-size:16px;font-weight:700;' }, (release.name || latestTag) + ' ' + _('is available!')),
+                                E('div', { 'style': 'font-size:12px;color:var(--gn-text-muted);display:flex;gap:8px;flex-wrap:wrap;' }, [
+                                    E('span', {}, _('Installed: ') + 'v' + currentClean),
+                                    E('span', { 'style': 'color:#6366f1;font-weight:700;' }, '➔ ' + _('New: ') + latestTag)
+                                ])
+                            ])
+                        ]),
+
+                        bodyText ? E('div', {
+                            'class': 'gn-card',
+                            'style': 'padding:12px 14px;margin-bottom:14px;font-size:12px;color:var(--gn-text-muted);white-space:pre-wrap;max-height:120px;overflow-y:auto;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.06);'
+                        }, bodyText) : E('span'),
+
+                        E('div', { 'style': 'margin-bottom:8px;font-size:12px;font-weight:700;color:var(--gn-text-main);' },
+                            _('Run this command on your router terminal / SSH to update:')
+                        ),
+
+                        E('div', {
+                            'style': 'background:#0f172a;border:1px solid #1e293b;border-radius:8px;padding:10px 14px;margin-bottom:16px;'
+                        }, [
+                            E('code', {
+                                'style': 'font-family:monospace;font-size:11px;color:#38bdf8;word-break:break-all;line-height:1.4;display:block;'
+                            }, updateCmd)
+                        ]),
+
+                        E('div', { 'style': 'display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;' }, [
+                            btnCopyCmd,
+                            E('div', { 'style': 'display:flex;gap:8px;' }, [
+                                btnUpdateNow,
+                                E('a', {
+                                    'href': release.html_url || (repoUrl + '/releases/tag/' + latestTag),
+                                    'target': '_blank',
+                                    'class': 'btn cbi-button gn-btn-sec',
+                                    'style': 'padding:7px 14px;font-size:12px;text-decoration:none;display:inline-flex;align-items:center;gap:6px;'
+                                }, [
+                                    E('span', {}, '📥'),
+                                    E('span', {}, _('GitHub'))
+                                ]),
+                                E('button', {
+                                    'class': 'btn cbi-button gn-btn-sec',
+                                    'click': ui.hideModal,
+                                    'style': 'padding:7px 14px;font-size:12px;'
+                                }, _('Close'))
+                            ])
+                        ])
+                    ])
+                ]);
+            }
+        }).catch(function(err) {
+            if (triggerBtn) {
+                triggerBtn.disabled = false;
+                triggerBtn.innerHTML = originalHtml;
+            }
+            ui.addNotification(null, E('p', {}, _('Update check failed: ') + (err.message || err)), 4000);
+        });
     },
 
     // Refresh Data in Background (Every 10s)
@@ -374,6 +628,62 @@ return view.extend({
             ui.addNotification(null, E('p', {}, _('Failed to toggle AdGuard protection: ') + (err.message || err)), 4000);
         }).finally(function() {
             self.isTogglingProtection = false;
+            if (btnEl) btnEl.disabled = false;
+        });
+    },
+
+    // Action: Toggle Security Hardening
+    handleToggleHardening: function(key, currentVal, btnEl) {
+        var self = this;
+        if (self.isUpdatingHardening) return;
+        self.isUpdatingHardening = true;
+        var newVal = (currentVal === 1 || currentVal === '1') ? '0' : '1';
+        if (btnEl) {
+            btnEl.disabled = true;
+            btnEl.innerHTML = '<span>⏳</span> ' + _('Applying...');
+        }
+
+        fs.exec(ACTION_SCRIPT, ['firewall_hardening_set', key, newVal]).then(function(res) {
+            var raw = res && res.stdout ? res.stdout.trim() : '';
+            var json = safeJson(raw, {});
+            if (json && json.result === 'ok') {
+                self.firewallHardening = json;
+                ui.addNotification(null, E('p', {}, _('Firewall defense setting updated and applied.')), 3000);
+            } else {
+                ui.addNotification(null, E('p', {}, _('Failed to update firewall setting: ') + (json.error || raw)), 4000);
+            }
+            var fwPane = document.getElementById('gn-pane-firewall');
+            if (fwPane) self.renderFirewallPane(fwPane);
+        }).catch(function(err) {
+            ui.addNotification(null, E('p', {}, _('Error updating firewall setting: ') + (err.message || err)), 4000);
+        }).finally(function() {
+            self.isUpdatingHardening = false;
+        });
+    },
+
+    // Action: Refresh Conntrack Sessions
+    handleRefreshConntrack: function(btnEl) {
+        var self = this;
+        if (self.isLoadingConntrack) return;
+        self.isLoadingConntrack = true;
+        if (btnEl) {
+            btnEl.disabled = true;
+            btnEl.innerHTML = '<span>⏳</span> ' + _('Scanning...');
+        }
+
+        fs.exec(ACTION_SCRIPT, ['conntrack_sessions', '350']).then(function(res) {
+            var raw = res && res.stdout ? res.stdout.trim() : '';
+            var json = safeJson(raw, {});
+            if (json && json.result === 'ok') {
+                self.conntrackSessionsList = json.sessions || [];
+                self.conntrackCount = json.total || self.conntrackSessionsList.length;
+            }
+            var fwPane = document.getElementById('gn-pane-firewall');
+            if (fwPane) self.renderFirewallPane(fwPane);
+        }).catch(function(err) {
+            ui.addNotification(null, E('p', {}, _('Failed to refresh conntrack: ') + (err.message || err)), 3500);
+        }).finally(function() {
+            self.isLoadingConntrack = false;
             if (btnEl) btnEl.disabled = false;
         });
     },
@@ -774,12 +1084,17 @@ return view.extend({
     renderFirewallPane: function(container) {
         var self = this;
         container.innerHTML = '';
+        try {
+
+        var self = this;
+        container.innerHTML = '';
 
         var fw = (self.statusData && self.statusData.firewall) || {};
         var isRunning = (fw.running === 1 || fw.running === true);
         var zones = self.firewallZones || [];
         var redirects = (uci.sections('firewall', 'redirect') || []);
         var conntrackSessions = self.conntrackCount || 0;
+        var hardening = self.firewallHardening || {};
 
         // Top Control Header
         var btnReloadFw = E('button', {
@@ -790,6 +1105,18 @@ return view.extend({
             E('span', {}, _('Reload Firewall'))
         ]);
         btnReloadFw.addEventListener('click', function() { self.handleReloadFirewall(btnReloadFw); });
+
+        var btnJumpConn = E('button', {
+            'class': 'gn-btn gn-btn-sec',
+            'style': 'display:inline-flex;align-items:center;gap:8px;'
+        }, [
+            svgIcon('pulse', 14, '#06b6d4'),
+            E('span', {}, _('Live Connections'))
+        ]);
+        btnJumpConn.addEventListener('click', function() {
+            var el = document.getElementById('gn-conntrack-card');
+            if (el) el.scrollIntoView({ behavior: 'smooth' });
+        });
 
         var topCard = E('div', { 'class': 'gn-card gn-card-glow-amber', 'style': 'margin-bottom:20px;' }, [
             E('div', { 'style': 'display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:16px;' }, [
@@ -809,12 +1136,393 @@ return view.extend({
                         ])
                     ])
                 ]),
-                E('div', { 'style': 'display:flex;gap:10px;align-items:center;' }, [
+                E('div', { 'style': 'display:flex;gap:10px;align-items:center;flex-wrap:wrap;' }, [
+                    btnJumpConn,
                     E('div', { 'class': 'gn-badge gn-badge-accent' }, [
                         svgIcon('pulse', 13, '#6366f1'),
                         E('span', {}, fmtNum(conntrackSessions) + ' ' + _('Active Conntracks'))
                     ]),
                     btnReloadFw
+                ])
+            ])
+        ]);
+
+        // -------------------------------------------------------------
+        // Router Security Hardening Defenses Card
+        // -------------------------------------------------------------
+        var isSyn = (hardening.synflood_protect === undefined) ? true : (hardening.synflood_protect === 1 || hardening.synflood_protect === '1');
+        var isDropInv = (hardening.drop_invalid === 1 || hardening.drop_invalid === '1');
+        var isStealth = (hardening.stealth_mode === 1 || hardening.stealth_mode === '1');
+        var isMtuFix = (hardening.mtu_fix === undefined) ? true : (hardening.mtu_fix === 1 || hardening.mtu_fix === '1');
+        var isFullcone = (hardening.fullcone === undefined) ? true : (hardening.fullcone === 1 || hardening.fullcone === '1');
+
+        var hardeningDef = [
+            {
+                key: 'synflood_protect',
+                val: hardening.synflood_protect,
+                isActive: isSyn,
+                icon: 'shield',
+                iconColor: '#10b981',
+                title: _('SYN Flood Attack Defense'),
+                statusBadge: isSyn ? _('Protected (Active)') : _('Disabled (Vulnerable)'),
+                statusClass: isSyn ? 'gn-pill-success' : 'gn-pill-danger',
+                actionLabel: isSyn ? _('Turn Off') : _('Shield On'),
+                actionClass: isSyn ? 'gn-btn-sec' : 'gn-btn-primary',
+                desc: _('Defends router CPU and conntrack memory against TCP SYN flood denial-of-service (DoS) attacks by enforcing Linux kernel SYN cookies on half-open handshakes.'),
+                recommendation: _('Strongly Recommended: Keep ON.')
+            },
+            {
+                key: 'drop_invalid',
+                val: hardening.drop_invalid,
+                isActive: isDropInv,
+                icon: 'fire',
+                iconColor: '#ef4444',
+                title: _('Drop Malformed Packets'),
+                statusBadge: isDropInv ? _('Filtered (Active)') : _('Permissive (Off)'),
+                statusClass: isDropInv ? 'gn-pill-success' : 'gn-pill-muted',
+                actionLabel: isDropInv ? _('Turn Off') : _('Shield On'),
+                actionClass: isDropInv ? 'gn-btn-sec' : 'gn-btn-primary',
+                desc: _('Silently drops corrupt, damaged, or out-of-window packets that do not belong to established sessions, neutralizing covert port scanner probes (XMAS & NULL scans).'),
+                recommendation: _('Recommended: Keep ON for packet integrity.')
+            },
+            {
+                key: 'stealth_mode',
+                val: hardening.stealth_mode,
+                isActive: isStealth,
+                icon: 'pulse',
+                iconColor: '#8b5cf6',
+                title: _('WAN Ping Stealth Mode'),
+                statusBadge: isStealth ? _('Stealth (Hidden)') : _('Discoverable'),
+                statusClass: isStealth ? 'gn-pill-info' : 'gn-pill-warning',
+                actionLabel: isStealth ? _('Allow Ping') : _('Enable Stealth'),
+                actionClass: isStealth ? 'gn-btn-sec' : 'gn-btn-primary',
+                desc: _('Silently discards public internet ICMP Echo (ping) requests. Hides your router so automated botnets and WAN port scanners perceive your IP as completely offline.'),
+                recommendation: _('Recommended: Stealth ON for home privacy.')
+            },
+            {
+                key: 'mtu_fix',
+                val: hardening.mtu_fix,
+                isActive: isMtuFix,
+                icon: 'network',
+                iconColor: '#f59e0b',
+                title: _('TCP MSS Clamping (MTU Fix)'),
+                statusBadge: isMtuFix ? _('Clamped (Active)') : _('Standard (Off)'),
+                statusClass: isMtuFix ? 'gn-pill-success' : 'gn-pill-muted',
+                actionLabel: isMtuFix ? _('Turn Off') : _('Shield On'),
+                actionClass: isMtuFix ? 'gn-btn-sec' : 'gn-btn-primary',
+                desc: _('Dynamically clamps the TCP Maximum Segment Size to fit precisely within your WAN MTU size (e.g. PPPoE or VPN), eliminating webpage freezes and online game loading stalls.'),
+                recommendation: _('Recommended: Keep ON.')
+            },
+            {
+                key: 'fullcone',
+                val: hardening.fullcone,
+                isActive: isFullcone,
+                icon: 'zap',
+                iconColor: '#06b6d4',
+                title: _('Full-Cone NAT (Open NAT)'),
+                statusBadge: isFullcone ? _('Open NAT (Active)') : _('Symmetric NAT'),
+                statusClass: isFullcone ? 'gn-pill-success' : 'gn-pill-muted',
+                actionLabel: isFullcone ? _('Symmetric') : _('Enable Open NAT'),
+                actionClass: isFullcone ? 'gn-btn-sec' : 'gn-btn-primary',
+                desc: _('Switches NAT translation from restrictive symmetric to Full-Cone mode, giving game consoles (PS5, Xbox, Switch) and peer-to-peer VoIP an Open NAT type without manual port redirects.'),
+                recommendation: _('Recommended: Keep ON for gaming & VoIP.')
+            }
+        ];
+
+        var hardeningGrid = E('div', {
+            'style': 'display:grid;grid-template-columns:repeat(auto-fit, minmax(290px, 1fr));gap:14px;padding:16px 20px;'
+        }, hardeningDef.map(function(h) {
+            var toggleBtn = E('button', {
+                'class': 'gn-btn ' + h.actionClass + ' gn-btn-sm',
+                'style': 'font-size:11px;padding:4px 12px;white-space:nowrap;'
+            }, h.actionLabel);
+
+            toggleBtn.addEventListener('click', function() {
+                self.handleToggleHardening(h.key, h.val, toggleBtn);
+            });
+
+            return E('div', {
+                'class': 'gn-card',
+                'style': 'padding:14px 16px;background:var(--gn-card-bg);border:1px solid var(--gn-card-border);border-radius:10px;display:flex;flex-direction:column;justify-content:space-between;gap:12px;transition:border-color 0.15s ease;'
+            }, [
+                E('div', {}, [
+                    E('div', { 'style': 'display:flex;justify-content:space-between;align-items:flex-start;gap:10px;margin-bottom:8px;' }, [
+                        E('div', { 'style': 'display:flex;align-items:center;gap:8px;' }, [
+                            E('div', { 'style': 'width:28px;height:28px;border-radius:7px;background:rgba(99,102,241,0.1);display:flex;align-items:center;justify-content:center;' },
+                                svgIcon(h.icon, 16, h.iconColor)
+                            ),
+                            E('span', { 'style': 'font-size:13.5px;font-weight:700;color:var(--gn-text-main);' }, h.title)
+                        ]),
+                        E('span', { 'class': 'gn-pill ' + h.statusClass, 'style': 'font-size:10px;padding:2px 7px;' }, h.statusBadge)
+                    ]),
+                    E('p', { 'style': 'font-size:11.5px;color:var(--gn-text-muted);line-height:1.45;margin:0 0 6px 0;' }, h.desc),
+                    E('div', { 'style': 'font-size:10.5px;color:var(--gn-accent);font-weight:600;' }, '💡 ' + h.recommendation)
+                ]),
+                E('div', { 'style': 'display:flex;justify-content:flex-end;border-top:1px solid var(--gn-card-border);padding-top:10px;' }, [
+                    toggleBtn
+                ])
+            ]);
+        }));
+
+        var hardeningCard = E('div', { 'class': 'gn-card gn-card-glow-indigo', 'style': 'margin-bottom:20px;' }, [
+            E('div', { 'class': 'gn-card-header', 'style': 'display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;' }, [
+                E('div', { 'class': 'gn-card-title', 'style': 'font-size:14px;font-weight:700;' }, [
+                    svgIcon('shield', 17, '#6366f1'),
+                    E('span', {}, _('Router Perimeter Defenses & Kernel Hardening'))
+                ]),
+                E('span', { 'class': 'gn-pill gn-pill-info', 'style': 'font-size:10px;' }, _('Linux Kernel Shields'))
+            ]),
+            E('div', { 'style': 'padding:12px 20px 4px 20px;font-size:12px;color:var(--gn-text-muted);' },
+                _('One-click hardware packet inspection, DoS rate-limiting, and WAN visibility protection. Changes apply immediately to Linux fw4 / nftables without rebooting.')
+            ),
+            hardeningGrid
+        ]);
+
+        // -------------------------------------------------------------
+        // Live Conntrack Sessions Inspector Card
+        // -------------------------------------------------------------
+        var allSessions = Array.isArray(self.conntrackSessionsList) ? self.conntrackSessionsList : [];
+        var clientMap = {};
+        (self.connectedClients || []).forEach(function(c) {
+            if (c && c.ip) clientMap[c.ip] = c;
+        });
+
+        var activeFilter = self.conntrackFilter || 'all';
+        var searchTerm = (self.conntrackSearchTerm || '').toLowerCase().trim();
+
+        var getPortHint = function(port) {
+            var p = parseInt(port, 10);
+            switch(p) {
+                case 443: return { label: 'HTTPS', color: '#10b981' };
+                case 80: return { label: 'HTTP', color: '#64748b' };
+                case 53: return { label: 'DNS', color: '#06b6d4' };
+                case 853: return { label: 'DoT', color: '#8b5cf6' };
+                case 123: return { label: 'NTP', color: '#f59e0b' };
+                case 22: return { label: 'SSH', color: '#ef4444' };
+                case 5228:
+                case 5229:
+                case 5230: return { label: 'Play Store', color: '#3b82f6' };
+                case 8080:
+                case 8443: return { label: 'Web Alt', color: '#6366f1' };
+                case 25565: return { label: 'Minecraft', color: '#10b981' };
+                case 51820: return { label: 'WireGuard', color: '#ec4899' };
+                default: return null;
+            }
+        };
+
+        var filterSessions = function() {
+            return allSessions.filter(function(s) {
+                if (activeFilter === 'tcp' && s.proto !== 'tcp') return false;
+                if (activeFilter === 'udp' && s.proto !== 'udp') return false;
+                if (activeFilter === 'est' && s.state !== 'ESTABLISHED') return false;
+                if (activeFilter === 'wan') {
+                    var d = s.dst || '';
+                    if (d.startsWith('192.168.') || d.startsWith('10.') || d.startsWith('172.16.') || d === '127.0.0.1') return false;
+                }
+
+                if (!searchTerm) return true;
+                var client = clientMap[s.src];
+                var clientName = client ? (client.custom_name || client.hostname || '') : '';
+                var targetStr = (s.src + ' ' + s.dst + ' ' + s.sport + ' ' + s.dport + ' ' + s.proto + ' ' + s.state + ' ' + clientName).toLowerCase();
+                return targetStr.indexOf(searchTerm) !== -1;
+            });
+        };
+
+        var sessionsTableBody = E('tbody');
+        var counterPill = E('span', { 'class': 'gn-badge gn-badge-accent', 'style': 'font-size:11px;' });
+
+        var renderSessionRows = function() {
+            sessionsTableBody.innerHTML = '';
+            var list = filterSessions();
+            counterPill.textContent = fmtNum(list.length) + ' / ' + fmtNum(allSessions.length) + ' ' + _('Sockets');
+
+            var maxDisplay = self.conntrackMaxDisplay || 50;
+            var displayList = list.slice(0, maxDisplay);
+
+            if (displayList.length === 0) {
+                sessionsTableBody.appendChild(E('tr', {}, [
+                    E('td', { 'colspan': '5', 'style': 'text-align:center;padding:24px;color:var(--gn-text-muted);' },
+                        _('No active connection states match the current filter.')
+                    )
+                ]));
+                return;
+            }
+
+            displayList.forEach(function(s) {
+                var client = clientMap[s.src];
+                var clientName = client ? (client.custom_name || client.hostname || '') : '';
+                var isSrcRouter = (s.src === '192.168.1.1');
+
+                var getStateBadge = function(state, proto) {
+                    var st = (state || proto || '').toUpperCase();
+                    if (st === 'ESTABLISHED') {
+                        return E('span', { 'class': 'gn-pill gn-pill-success', 'style': 'font-size:10px;padding:2px 7px;' }, [
+                            E('span', { 'class': 'gn-pulse-dot gn-dot-green' }),
+                            'ESTABLISHED'
+                        ]);
+                    }
+                    if (st === 'TIME_WAIT') return E('span', { 'class': 'gn-pill gn-pill-warning', 'style': 'font-size:10px;padding:2px 7px;' }, 'TIME_WAIT');
+                    if (st === 'UDP') return E('span', { 'class': 'gn-pill gn-pill-info', 'style': 'font-size:10px;padding:2px 7px;' }, 'UDP');
+                    if (st === 'ICMP') return E('span', { 'class': 'gn-pill gn-pill-muted', 'style': 'font-size:10px;padding:2px 7px;' }, 'ICMP');
+                    return E('span', { 'class': 'gn-pill gn-pill-muted', 'style': 'font-size:10px;padding:2px 7px;' }, st);
+                };
+
+                var portHint = getPortHint(s.dport);
+
+                var btnCopyIp = E('button', {
+                    'class': 'gn-btn gn-btn-sec gn-btn-sm',
+                    'style': 'padding:2px 6px;font-size:10px;display:inline-flex;align-items:center;gap:4px;',
+                    'title': _('Copy Remote IP')
+                }, [
+                    svgIcon('copy', 11),
+                    E('span', {}, _('Copy'))
+                ]);
+                btnCopyIp.addEventListener('click', function(ev) {
+                    ev.preventDefault();
+                    if (navigator.clipboard) {
+                        navigator.clipboard.writeText(s.dst);
+                        ui.addNotification(null, E('p', {}, _('Copied IP: ') + s.dst), 2000);
+                    }
+                });
+
+                var row = E('tr', { 'class': 'gn-client-row' }, [
+                    // Source
+                    E('td', {}, [
+                        E('div', { 'style': 'display:flex;align-items:center;gap:6px;' }, [
+                            svgIcon('network', 13, '#6366f1'),
+                            E('span', { 'style': 'font-weight:700;color:var(--gn-text-main);font-size:12px;' },
+                                isSrcRouter ? _('Router Gateway') : (clientName ? clientName : s.src)
+                            ),
+                            client && client.custom_name ? E('span', { 'class': 'gn-badge gn-badge-accent', 'style': 'font-size:9.5px;padding:1px 5px;' }, _('Alias')) : null
+                        ]),
+                        E('div', { 'style': 'font-size:11px;color:var(--gn-text-muted);font-family:monospace;margin-top:2px;' },
+                            s.src + (s.sport ? (':' + s.sport) : '')
+                        )
+                    ]),
+                    // Proto & State
+                    E('td', {}, [
+                        E('div', { 'style': 'display:flex;align-items:center;gap:6px;' }, [
+                            E('span', { 'class': 'gn-badge gn-badge-muted', 'style': 'font-size:10px;padding:1px 5px;' }, s.proto.toUpperCase()),
+                            getStateBadge(s.state, s.proto)
+                        ])
+                    ]),
+                    // Destination Host
+                    E('td', {}, [
+                        E('div', { 'style': 'display:flex;align-items:center;gap:6px;flex-wrap:wrap;' }, [
+                            E('code', { 'class': 'gn-code', 'style': 'font-size:11.5px;font-weight:600;' }, s.dst + (s.dport ? (':' + s.dport) : '')),
+                            portHint ? E('span', {
+                                'style': 'font-size:10px;font-weight:700;padding:1px 6px;border-radius:4px;background:' + portHint.color + '20;color:' + portHint.color + ';border:1px solid ' + portHint.color + '40;'
+                            }, portHint.label) : null
+                        ])
+                    ]),
+                    // Traffic Volume
+                    E('td', {}, [
+                        E('div', { 'style': 'font-size:12px;font-weight:700;color:var(--gn-text-main);' }, formatBytes(s.bytes)),
+                        E('div', { 'style': 'font-size:10.5px;color:var(--gn-text-muted);' }, fmtNum(s.packets) + ' ' + _('pkts'))
+                    ]),
+                    // Quick Action
+                    E('td', {}, [
+                        btnCopyIp
+                    ])
+                ]);
+                sessionsTableBody.appendChild(row);
+            });
+
+            if (list.length > maxDisplay) {
+                var btnMore = E('button', {
+                    'class': 'gn-btn gn-btn-sec gn-btn-sm',
+                    'style': 'margin:8px 0;font-size:11px;'
+                }, _('Show More Connections (+50)'));
+                btnMore.addEventListener('click', function() {
+                    self.conntrackMaxDisplay = (self.conntrackMaxDisplay || 50) + 50;
+                    renderSessionRows();
+                });
+                sessionsTableBody.appendChild(E('tr', {}, [
+                    E('td', { 'colspan': '5', 'style': 'text-align:center;padding:10px;' }, [btnMore])
+                ]));
+            }
+        };
+
+        var searchInput = E('input', {
+            'class': 'gn-input',
+            'placeholder': _('Search client, remote IP, or port (e.g. 443, 80, 192.168.1.105)...'),
+            'style': 'flex:1;min-width:240px;font-size:12px;padding:6px 12px;'
+        });
+        searchInput.value = searchTerm;
+        searchInput.addEventListener('input', function(ev) {
+            self.conntrackSearchTerm = ev.target.value;
+            searchTerm = ev.target.value.toLowerCase().trim();
+            renderSessionRows();
+        });
+
+        // Filter Pills
+        var filterTabs = [
+            { id: 'all', label: _('All') },
+            { id: 'tcp', label: 'TCP' },
+            { id: 'udp', label: 'UDP' },
+            { id: 'est', label: 'ESTABLISHED' },
+            { id: 'wan', label: '🌐 External WAN' }
+        ];
+
+        var filterPillsBox = E('div', { 'style': 'display:flex;gap:6px;flex-wrap:wrap;' }, filterTabs.map(function(ft) {
+            var btn = E('button', {
+                'class': 'gn-btn ' + (activeFilter === ft.id ? 'gn-btn-primary' : 'gn-btn-sec') + ' gn-btn-sm',
+                'style': 'font-size:11px;padding:3px 10px;',
+                'click': function() {
+                    activeFilter = ft.id;
+                    self.conntrackFilter = ft.id;
+                    Array.from(filterPillsBox.children).forEach(function(b) {
+                        b.className = 'gn-btn gn-btn-sec gn-btn-sm';
+                        b.style.fontSize = '11px';
+                        b.style.padding = '3px 10px';
+                    });
+                    btn.className = 'gn-btn gn-btn-primary gn-btn-sm';
+                    renderSessionRows();
+                }
+            }, ft.label);
+            return btn;
+        }));
+
+        var btnRefreshSessions = E('button', {
+            'class': 'gn-btn gn-btn-sec gn-btn-sm',
+            'style': 'display:inline-flex;align-items:center;gap:6px;font-size:11.5px;'
+        }, [
+            svgIcon('refresh', 13),
+            E('span', {}, _('Refresh Telemetry'))
+        ]);
+        btnRefreshSessions.addEventListener('click', function() {
+            self.handleRefreshConntrack(btnRefreshSessions);
+        });
+
+        renderSessionRows();
+
+        var conntrackCard = E('div', { 'id': 'gn-conntrack-card', 'class': 'gn-card gn-card-glow-emerald', 'style': 'margin-bottom:20px;' }, [
+            E('div', { 'class': 'gn-card-header', 'style': 'display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;' }, [
+                E('div', { 'class': 'gn-card-title', 'style': 'font-size:14px;font-weight:700;' }, [
+                    svgIcon('pulse', 18, '#10b981'),
+                    E('span', {}, _('Live Network Connection Inspector (Active Conntracks)'))
+                ]),
+                E('div', { 'style': 'display:flex;gap:8px;align-items:center;' }, [
+                    counterPill,
+                    btnRefreshSessions
+                ])
+            ]),
+            E('div', { 'style': 'padding:14px 20px;border-bottom:1px solid var(--gn-card-border);display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;' }, [
+                searchInput,
+                filterPillsBox
+            ]),
+            E('div', { 'class': 'gn-table-container' }, [
+                E('table', { 'class': 'gn-table' }, [
+                    E('thead', {}, [
+                        E('tr', {}, [
+                            E('th', {}, _('Source Client')),
+                            E('th', {}, _('Protocol & State')),
+                            E('th', {}, _('Destination Host')),
+                            E('th', {}, _('Traffic Volume')),
+                            E('th', {}, _('Quick Action'))
+                        ])
+                    ]),
+                    sessionsTableBody
                 ])
             ])
         ]);
@@ -926,8 +1634,29 @@ return view.extend({
         ]);
 
         container.appendChild(topCard);
+        container.appendChild(hardeningCard);
+        container.appendChild(conntrackCard);
         container.appendChild(zonesCard);
-        container.appendChild(redirectsCard);
+            container.appendChild(topCard);
+            container.appendChild(hardeningCard);
+            container.appendChild(conntrackCard);
+            container.appendChild(zonesCard);
+            container.appendChild(redirectsCard);
+        } catch (err) {
+            console.error('Error rendering firewall pane:', err);
+            container.appendChild(E('div', {
+                'class': 'gn-card',
+                'style': 'padding:24px;text-align:center;border-top:3px solid #ef4444;margin-bottom:20px;'
+            }, [
+                E('h3', { 'style': 'color:#ef4444;margin:0 0 10px 0;font-size:16px;' }, _('Failed to load Firewall Dashboard')),
+                E('p', { 'style': 'color:var(--gn-text-muted);font-size:13px;font-family:monospace;' }, (err && err.message) ? err.message : String(err)),
+                E('button', {
+                    'class': 'gn-btn gn-btn-primary gn-btn-sm',
+                    'style': 'margin-top:14px;',
+                    'click': function() { self.renderFirewallPane(container); }
+                }, _('Retry Loading'))
+            ]));
+        }
     },
 
     // =========================================================================
@@ -1928,9 +2657,43 @@ return view.extend({
             ])
         ]);
 
+        var btnSettingsCheckUpdate = E('button', {
+            'class': 'gn-btn gn-btn-sec',
+            'style': 'padding:8px 16px;font-size:13px;font-weight:600;display:inline-flex;align-items:center;gap:6px;cursor:pointer;'
+        }, [
+            E('span', {}, '🔄'),
+            E('span', {}, _('Check for Updates'))
+        ]);
+        btnSettingsCheckUpdate.addEventListener('click', function() {
+            self.checkForUpdate(btnSettingsCheckUpdate);
+        });
+
+        var cardAbout = E('div', { 'class': 'gn-card', 'style': 'padding:20px 22px;margin-bottom:20px;' }, [
+            E('div', { 'style': 'display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;' }, [
+                E('div', {}, [
+                    E('div', { 'style': 'display:flex;align-items:center;gap:10px;margin-bottom:6px;' }, [
+                        E('span', { 'style': 'font-size:18px;' }, 'ℹ️'),
+                        E('h4', { 'style': 'color:var(--gn-text-main);margin:0;font-size:15px;font-weight:700;' }, _('Software Updates & Suite Info'))
+                    ]),
+                    E('div', { 'style': 'color:var(--gn-text-muted);font-size:13px;' }, [
+                        _('Installed Version: '),
+                        E('strong', { 'style': 'color:var(--gn-text-main);' }, 'v' + GUARDIAN_VERSION),
+                        E('span', { 'style': 'margin:0 6px;' }, '•'),
+                        E('a', {
+                            'href': REPO_URL,
+                            'target': '_blank',
+                            'style': 'color:#6366f1;text-decoration:none;'
+                        }, 'GitHub Repository')
+                    ])
+                ]),
+                btnSettingsCheckUpdate
+            ])
+        ]);
+
         container.appendChild(headerCard);
         container.appendChild(testResultBox);
         container.appendChild(settingsFormCard);
+        container.appendChild(cardAbout);
     },
 
     // =========================================================================
@@ -2232,6 +2995,11 @@ return view.extend({
         if (data[4]) self.conntrackCount = parseInt(data[4].trim(), 10) || 0;
         self.uciGuardian = data[5] || {};
         self.uciFirewall = data[6] || {};
+        if (data[9] && data[9].stdout) self.firewallHardening = safeJson(data[9].stdout, {});
+        if (data[10] && data[10].stdout) {
+            var ctInit = safeJson(data[10].stdout, {});
+            self.conntrackSessionsList = ctInit.sessions || [];
+        }
 
         // Merge direct stats into statusData if statusData.adguard is empty or missing stats
         if (!self.statusData || !self.statusData.adguard) {
@@ -2404,14 +3172,28 @@ return view.extend({
             wrapper.classList.add('gn-theme-light');
         }
 
+        // Header Update Button
+        var btnHeaderCheckUpdate = E('button', {
+            'id': 'gn-btn-header-check-update',
+            'class': 'gn-btn gn-btn-sec gn-btn-sm',
+            'style': 'padding:3px 10px;font-size:11px;font-weight:600;display:inline-flex;align-items:center;gap:5px;cursor:pointer;border-radius:20px;'
+        }, [
+            E('span', {}, '🔄'),
+            E('span', {}, _('Check Update'))
+        ]);
+        btnHeaderCheckUpdate.addEventListener('click', function() {
+            self.checkForUpdate(btnHeaderCheckUpdate);
+        });
+
         // Top Header
         var header = E('div', { 'class': 'gn-header' }, [
             E('div', { 'class': 'gn-brand' }, [
                 E('div', { 'class': 'gn-brand-icon' }, svgIcon('shield', 24, '#ffffff')),
                 E('div', {}, [
-                    E('div', { 'style': 'display:flex;align-items:center;gap:8px;' }, [
+                    E('div', { 'style': 'display:flex;align-items:center;gap:8px;flex-wrap:wrap;' }, [
                         E('h1', { 'class': 'gn-title' }, 'Guardian Onyx'),
-                        E('span', { 'class': 'gn-badge gn-badge-accent', 'style': 'font-size:11px;padding:2px 8px;' }, 'v1.3.1')
+                        E('span', { 'class': 'gn-badge gn-badge-accent', 'style': 'font-size:11px;padding:2px 8px;' }, 'v' + GUARDIAN_VERSION),
+                        btnHeaderCheckUpdate
                     ]),
                     E('p', { 'class': 'gn-subtitle' }, _('OpenWrt Unified Security, AdGuard Home & Firewall Monitoring'))
                 ])
