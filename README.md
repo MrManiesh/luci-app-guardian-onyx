@@ -18,6 +18,12 @@
 
 [🌟 Key Highlights](#-key-highlights) • [📱 Features by Tab](#-control-center-tabs) • [📦 Installation (APK)](#-installation-apk) • [💡 Pro Tips](#-pro-tips--workflows) • [🛠️ Technical Docs](EXTENDED_README.md)
 
+<br/><br/>
+
+<p align="center">
+  <img src="screenshot/Connected_Clients.png" alt="Guardian Onyx - Connected Clients Dashboard" width="95%" />
+</p>
+
 </div>
 
 ---
@@ -40,6 +46,10 @@
 
 Everything you need to monitor and manage every device connected to your Wi-Fi or LAN ports.
 
+<p align="center">
+  <img src="screenshot/Connected_devices_block_services.png" alt="Per-Device App & Service Blocker Modal" width="95%" />
+</p>
+
 | Feature | What It Does | User Benefit |
 |---|---|---|
 | **Overview Metric Cards** | Live summaries of discovered devices, 5GHz vs 2.4GHz Wi-Fi breakdown, wired LAN counts, total data volume, and session counters. | Instant network health check at a single glance. |
@@ -56,6 +66,10 @@ Everything you need to monitor and manage every device connected to your Wi-Fi o
 
 Monitor, configure, and fine-tune your network-wide DNS ad-blocking and privacy engine directly from LuCI.
 
+<p align="center">
+  <img src="screenshot/adguard_home_tab.png" alt="AdGuard Home Integration & Custom Rules Manager" width="95%" />
+</p>
+
 | Feature | Description |
 |---|---|
 | **Instance Health Banner** | Displays live host, port, upstream latency, engine version, and active status (`Connected & Active` vs `Protection Paused`). |
@@ -71,6 +85,10 @@ Monitor, configure, and fine-tune your network-wide DNS ad-blocking and privacy 
 
 Transparent visibility and active control over Linux kernel packet filtering, DoS defenses, and socket connections.
 
+<p align="center">
+  <img src="screenshot/firewall_tab.png" alt="Firewall Hardening Shields & Live Conntrack Sessions Inspector" width="95%" />
+</p>
+
 | Feature | Description |
 |---|---|
 | **🛡️ Perimeter Hardening Shields** | 1-click toggles for **SYN Flood protection**, **Drop Invalid Packets**, **WAN Ping Stealth**, **TCP MSS Clamping**, and **Full-Cone NAT** with built-in explanatory guides. |
@@ -84,6 +102,10 @@ Transparent visibility and active control over Linux kernel packet filtering, Do
 ### 4. Settings & Auto-Discovery
 
 Effortless connection between LuCI and your AdGuard Home instance.
+
+<p align="center">
+  <img src="screenshot/settings_tab.png" alt="Settings & Software Updates" width="95%" />
+</p>
 
 | Feature | Description |
 |---|---|
