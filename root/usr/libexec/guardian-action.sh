@@ -169,8 +169,9 @@ cmd_clients() {
     local alias_file="/tmp/guardian_alias.$$"
     local static_file="/tmp/guardian_static.$$"
     local ct_file="/tmp/guardian_ct.$$"
+    local ag_file="/tmp/guardian_ag.$$"
 
-    touch "$wl_file" "$stat_file" "$blocked_file" "$alias_file" "$static_file" "$ct_file"
+    touch "$wl_file" "$stat_file" "$blocked_file" "$alias_file" "$static_file" "$ct_file" "$ag_file"
 
     # 1. Pre-collect wireless associations (iwinfo)
     if command -v iwinfo >/dev/null 2>&1; then
@@ -243,6 +244,20 @@ cmd_clients() {
         }
     }' /proc/net/nf_conntrack > "$ct_file" 2>/dev/null
 
+    # 7. Pre-collect AdGuard Home client blocked services
+    local ag_raw=$(adguard_api "clients" 2>/dev/null)
+    if [ -n "$ag_raw" ]; then
+        echo "$ag_raw" | jq -r '
+            (.clients // [])[] |
+            . as $c |
+            ($c.blocked_services // []) as $bs |
+            if ($bs | length) > 0 then
+                ($c.ids // [])[] |
+                "\((. | ascii_downcase))|\($bs | tojson)"
+            else empty end
+        ' 2>/dev/null >> "$ag_file"
+    fi
+
     local result="["
     local first=1
 
@@ -312,12 +327,20 @@ cmd_clients() {
         local is_static="false"
         grep -qi "^${mac}$" "$static_file" 2>/dev/null && is_static="true"
 
+        # AdGuard blocked services for this client
+        local blocked_services="[]"
+        if [ -s "$ag_file" ]; then
+            local ag_match=$(grep -i "^${mac}|" "$ag_file" 2>/dev/null | head -1 | cut -d'|' -f2-)
+            [ -z "$ag_match" ] && ag_match=$(grep -i "^${ip}|" "$ag_file" 2>/dev/null | head -1 | cut -d'|' -f2-)
+            [ -n "$ag_match" ] && blocked_services="$ag_match"
+        fi
+
         [ $first -eq 0 ] && result="${result},"
-        result="${result}{\"ip\":\"${ip}\",\"mac\":\"${mac}\",\"hostname\":\"${hostname}\",\"custom_name\":\"${custom_name}\",\"iface\":\"${iface}\",\"conn_type\":\"${conn_type}\",\"wifi_band\":\"${wifi_band}\",\"wifi_signal\":\"${wifi_signal}\",\"sessions\":${sessions},\"rx_bytes\":${rx_bytes:-0},\"tx_bytes\":${tx_bytes:-0},\"tx_rate\":\"${tx_rate}\",\"rx_rate\":\"${rx_rate}\",\"conn_time\":${conn_time:-0},\"is_blocked\":${is_blocked},\"is_static\":${is_static}}"
+        result="${result}{\"ip\":\"${ip}\",\"mac\":\"${mac}\",\"hostname\":\"${hostname}\",\"custom_name\":\"${custom_name}\",\"iface\":\"${iface}\",\"conn_type\":\"${conn_type}\",\"wifi_band\":\"${wifi_band}\",\"wifi_signal\":\"${wifi_signal}\",\"sessions\":${sessions},\"rx_bytes\":${rx_bytes:-0},\"tx_bytes\":${tx_bytes:-0},\"tx_rate\":\"${tx_rate}\",\"rx_rate\":\"${rx_rate}\",\"conn_time\":${conn_time:-0},\"is_blocked\":${is_blocked},\"is_static\":${is_static},\"blocked_services\":${blocked_services}}"
         first=0
     done < /proc/net/arp
 
-    rm -f "$wl_file" "$stat_file" "$blocked_file" "$alias_file" "$static_file" "$ct_file"
+    rm -f "$wl_file" "$stat_file" "$blocked_file" "$alias_file" "$static_file" "$ct_file" "$ag_file"
     echo "${result}]"
 }
 
@@ -550,27 +573,168 @@ cmd_retrieve_credentials() {
 ENDJSON
 }
 
+cmd_adguard_rules() {
+    local status=$(adguard_api "filtering/status")
+    if [ -n "$status" ]; then
+        echo "$status" | jq -c '{result: "ok", rules: (.user_rules // [])}' 2>/dev/null || echo '{"result":"ok","rules":[]}'
+    else
+        echo '{"result":"error","error":"AdGuard unreachable","rules":[]}'
+    fi
+}
+
+cmd_adguard_add_rule() {
+    local input="$2"
+    local rtype="$3"
+    [ -z "$input" ] && echo '{"result":"error","error":"Empty rule"}' && return
+    local rule="$input"
+    if ! echo "$rule" | grep -q '\^' && ! echo "$rule" | grep -q '^\['; then
+        rule=$(echo "$rule" | sed -e 's|^https*://||' -e 's|/.*$||')
+        if [ "$rtype" = "whitelist" ] || [ "$rtype" = "allow" ]; then
+            rule="@@||${rule}^"
+        else
+            rule="||${rule}^"
+        fi
+    fi
+
+    local status=$(adguard_api "filtering/status")
+    [ -z "$status" ] && echo '{"result":"error","error":"AdGuard unreachable"}' && return
+
+    local payload=$(echo "$status" | jq -c --arg r "$rule" '{rules: (((.user_rules // []) + [$r]) | unique)}' 2>/dev/null)
+    if [ -n "$payload" ]; then
+        adguard_api "filtering/set_rules" "POST" "$payload" >/dev/null 2>&1
+        echo "{\"result\":\"ok\",\"rule\":\"$rule\"}"
+    else
+        echo '{"result":"error","error":"Failed to build payload"}'
+    fi
+}
+
+cmd_adguard_delete_rule() {
+    local rule="$2"
+    [ -z "$rule" ] && echo '{"result":"error","error":"Empty rule"}' && return
+    local status=$(adguard_api "filtering/status")
+    [ -z "$status" ] && echo '{"result":"error","error":"AdGuard unreachable"}' && return
+
+    local payload=$(echo "$status" | jq -c --arg r "$rule" '{rules: ((.user_rules // []) - [$r])}' 2>/dev/null)
+    if [ -n "$payload" ]; then
+        adguard_api "filtering/set_rules" "POST" "$payload" >/dev/null 2>&1
+        echo "{\"result\":\"ok\",\"rule\":\"$rule\"}"
+    else
+        echo '{"result":"error","error":"Failed to build payload"}'
+    fi
+}
+
+cmd_adguard_services_list() {
+    local all=$(adguard_api "blocked_services/all")
+    if [ -n "$all" ]; then
+        echo "$all" | jq -c '{result: "ok", services: (.blocked_services // [])}' 2>/dev/null || echo '{"result":"ok","services":[]}'
+    else
+        echo '{"result":"error","error":"AdGuard unreachable","services":[]}'
+    fi
+}
+
+cmd_adguard_client_services() {
+    local ip="$2"
+    local mac="$3"
+    local clients_raw=$(adguard_api "clients")
+    if [ -z "$clients_raw" ]; then
+        echo '{"result":"error","error":"AdGuard unreachable"}'
+        return
+    fi
+
+    local client_info=$(echo "$clients_raw" | jq -c --arg ip "$ip" --arg mac "$mac" '
+        (.clients // [])[] | select(
+            (.ids // []) | any(
+                . == $ip or (. | ascii_upcase) == ($mac | ascii_upcase)
+            )
+        )
+    ' 2>/dev/null | head -n 1)
+
+    if [ -n "$client_info" ]; then
+        echo "$client_info" | jq -c '{
+            result: "ok",
+            found: true,
+            name: .name,
+            blocked_services: (.blocked_services // [])
+        }'
+    else
+        echo '{"result":"ok","found":false,"blocked_services":[]}'
+    fi
+}
+
+cmd_adguard_set_client_services() {
+    local ip="$2"
+    local mac="$3"
+    local name="$4"
+    local services_json="$5"
+
+    [ -z "$name" ] && name="$ip"
+    [ -z "$services_json" ] && services_json="[]"
+
+    local clients_raw=$(adguard_api "clients")
+    [ -z "$clients_raw" ] && echo '{"result":"error","error":"AdGuard unreachable"}' && return
+
+    local existing_name=$(echo "$clients_raw" | jq -r --arg ip "$ip" --arg mac "$mac" '
+        ((.clients // [])[] | select(
+            (.ids // []) | any(
+                . == $ip or (. | ascii_upcase) == ($mac | ascii_upcase)
+            )
+        ).name) // empty
+    ' 2>/dev/null | head -n 1)
+
+    if [ -n "$existing_name" ]; then
+        local payload=$(echo "$clients_raw" | jq -c --arg ename "$existing_name" --argjson svcs "$services_json" '
+            {
+                name: $ename,
+                data: (((.clients // [])[] | select(.name == $ename)) + {
+                    blocked_services: $svcs,
+                    use_global_blocked_services: false
+                })
+            }
+        ' 2>/dev/null)
+        adguard_api "clients/update" "POST" "$payload" >/dev/null 2>&1
+        echo "{\"result\":\"ok\",\"action\":\"updated\",\"client\":\"$existing_name\"}"
+    else
+        local ids_json="[\"$ip\"]"
+        [ -n "$mac" ] && ids_json="[\"$ip\",\"$mac\"]"
+        local payload=$(jq -nc --arg name "$name" --argjson ids "$ids_json" --argjson svcs "$services_json" '{
+            name: $name,
+            ids: $ids,
+            blocked_services: $svcs,
+            use_global_blocked_services: false,
+            filtering_enabled: true
+        }')
+        adguard_api "clients/add" "POST" "$payload" >/dev/null 2>&1
+        echo "{\"result\":\"ok\",\"action\":\"added\",\"client\":\"$name\"}"
+    fi
+}
+
 case "$ACTION" in
-    status)                 cmd_status ;;
-    adguard_stats)          cmd_adguard_stats ;;
-    adguard_toggle)         cmd_adguard_toggle ;;
-    adguard_log)            cmd_adguard_query_log ;;
-    adguard_filters)        cmd_adguard_filter_status ;;
-    adguard_filter_refresh) cmd_adguard_filter_refresh ;;
-    test_connection)        cmd_test_connection "$@" ;;
-    save_credentials)       cmd_save_credentials "$@" ;;
-    retrieve_credentials)   cmd_retrieve_credentials ;;
-    firewall_rules)         cmd_firewall_rules ;;
-    firewall_zones)         cmd_firewall_zones ;;
-    firewall_reload)        cmd_firewall_reload ;;
-    clients)                cmd_clients ;;
-    client_block)           cmd_client_block "$@" ;;
-    client_unblock)         cmd_client_unblock "$@" ;;
-    set_nickname)           cmd_set_nickname "$@" ;;
-    reserve_ip)             cmd_reserve_ip "$@" ;;
-    unreserve_ip)           cmd_unreserve_ip "$@" ;;
-    daemon)                 cmd_daemon ;;
-    stop)                   cmd_stop ;;
+    status)                     cmd_status ;;
+    adguard_stats)              cmd_adguard_stats ;;
+    adguard_toggle)             cmd_adguard_toggle ;;
+    adguard_log)                cmd_adguard_query_log ;;
+    adguard_filters)            cmd_adguard_filter_status ;;
+    adguard_filter_refresh)     cmd_adguard_filter_refresh ;;
+    adguard_rules)              cmd_adguard_rules ;;
+    adguard_add_rule)           cmd_adguard_add_rule "$@" ;;
+    adguard_delete_rule)        cmd_adguard_delete_rule "$@" ;;
+    adguard_services_list)      cmd_adguard_services_list ;;
+    adguard_client_services)    cmd_adguard_client_services "$@" ;;
+    adguard_set_client_services) cmd_adguard_set_client_services "$@" ;;
+    test_connection)            cmd_test_connection "$@" ;;
+    save_credentials)           cmd_save_credentials "$@" ;;
+    retrieve_credentials)       cmd_retrieve_credentials ;;
+    firewall_rules)             cmd_firewall_rules ;;
+    firewall_zones)             cmd_firewall_zones ;;
+    firewall_reload)            cmd_firewall_reload ;;
+    clients)                    cmd_clients ;;
+    client_block)               cmd_client_block "$@" ;;
+    client_unblock)             cmd_client_unblock "$@" ;;
+    set_nickname)               cmd_set_nickname "$@" ;;
+    reserve_ip)                 cmd_reserve_ip "$@" ;;
+    unreserve_ip)               cmd_unreserve_ip "$@" ;;
+    daemon)                     cmd_daemon ;;
+    stop)                       cmd_stop ;;
     *)
         echo '{"error":"unknown action"}'
         exit 1

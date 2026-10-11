@@ -243,6 +243,9 @@ return view.extend({
     isScanningClients: false,
     isTestingConnection: false,
     isSavingSettings: false,
+    adguardRules: [],
+    adguardServices: [],
+    isManagingRules: false,
 
     load: function() {
         return Promise.all([
@@ -252,7 +255,9 @@ return view.extend({
             L.resolveDefault(fs.exec(ACTION_SCRIPT, ['clients']), null),
             L.resolveDefault(fs.read('/proc/sys/net/netfilter/nf_conntrack_count'), null),
             uci.load('guardian').catch(function() { return {}; }),
-            uci.load('firewall').catch(function() { return {}; })
+            uci.load('firewall').catch(function() { return {}; }),
+            L.resolveDefault(fs.exec(ACTION_SCRIPT, ['adguard_rules']), null),
+            L.resolveDefault(fs.exec(ACTION_SCRIPT, ['adguard_services_list']), null)
         ]);
     },
 
@@ -324,6 +329,14 @@ return view.extend({
                 }
             }
             if (self.activeTab === 'adguard') {
+                fs.exec(ACTION_SCRIPT, ['adguard_rules']).then(function(rRes) {
+                    if (rRes && rRes.stdout) {
+                        var rJson = safeJson(rRes.stdout, {});
+                        if (rJson && rJson.rules) self.adguardRules = rJson.rules;
+                        var rBox = document.getElementById('gn-adguard-rules-box');
+                        if (rBox) self.renderAdGuardRulesCard(rBox);
+                    }
+                }).catch(function() {});
                 var agPane = document.getElementById('gn-pane-adguard');
                 if (agPane) {
                     self.renderAdGuardPane(agPane);
@@ -749,8 +762,12 @@ return view.extend({
             ])
         ]);
 
+        var rulesCard = E('div', { 'class': 'gn-card', 'id': 'gn-adguard-rules-box', 'style': 'margin-bottom:20px;' });
+        self.renderAdGuardRulesCard(rulesCard);
+
         container.appendChild(banner);
         container.appendChild(metricGrid);
+        container.appendChild(rulesCard);
         container.appendChild(queryLogCard);
     },
 
@@ -1083,6 +1100,494 @@ return view.extend({
 
         container.appendChild(metricGrid);
         container.appendChild(clientCard);
+    },
+
+
+    // =========================================================================
+    // ADGUARD CUSTOM RULES (WHITELIST / BLACKLIST) MANAGER
+    // =========================================================================
+    renderAdGuardRulesCard: function(cardEl) {
+        var self = this;
+        cardEl.innerHTML = '';
+
+        var rules = self.adguardRules || [];
+        var totalRules = rules.length;
+
+        var header = E('div', { 'class': 'gn-card-header', 'style': 'display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;' }, [
+            E('div', { 'class': 'gn-card-title' }, [
+                svgIcon('filter', 16, '#10b981'),
+                E('span', {}, _('Custom Filtering Rules (Whitelist & Blacklist)')),
+                E('span', { 'class': 'gn-badge gn-badge-accent', 'style': 'font-size:11px;margin-left:6px;' }, totalRules + ' ' + _('Rules'))
+            ]),
+            E('div', { 'style': 'display:flex;gap:8px;align-items:center;' }, [
+                E('button', {
+                    'class': 'gn-btn gn-btn-sec gn-btn-sm',
+                    'style': 'display:inline-flex;align-items:center;gap:6px;',
+                    'title': _('Refresh custom rules from AdGuard Home'),
+                    'click': function(ev) {
+                        var btn = ev.currentTarget;
+                        btn.disabled = true;
+                        fs.exec(ACTION_SCRIPT, ['adguard_rules']).then(function(res) {
+                            if (res && res.stdout) {
+                                var j = safeJson(res.stdout, {});
+                                if (j && j.rules) self.adguardRules = j.rules;
+                            }
+                            self.renderAdGuardRulesCard(cardEl);
+                            ui.addNotification(null, E('p', {}, _('Rules refreshed from AdGuard Home.')), 2500);
+                        }).finally(function() {
+                            btn.disabled = false;
+                        });
+                    }
+                }, [
+                    svgIcon('refresh', 12),
+                    E('span', {}, _('Refresh'))
+                ])
+            ])
+        ]);
+
+        // Form Section (Add Rule)
+        var inputDomain = E('input', {
+            'type': 'text',
+            'class': 'cbi-input-text gn-input',
+            'placeholder': _('Enter domain (e.g. globh.com) or Adblock rule (e.g. @@||example.com^)'),
+            'style': 'flex:1;min-width:260px;'
+        });
+
+        var selectType = E('select', {
+            'class': 'cbi-input-select gn-select',
+            'style': 'padding:7px 12px;border-radius:8px;'
+        }, [
+            E('option', { 'value': 'whitelist' }, '🟢 ' + _('Whitelist (Allow / Bypass)')),
+            E('option', { 'value': 'blacklist' }, '🔴 ' + _('Blacklist (Block)'))
+        ]);
+
+        var btnAdd = E('button', {
+            'class': 'gn-btn gn-btn-primary gn-btn-sm',
+            'style': 'display:inline-flex;align-items:center;gap:6px;'
+        }, [
+            svgIcon('plus', 13),
+            E('span', {}, _('Add Rule'))
+        ]);
+
+        btnAdd.addEventListener('click', function() {
+            self.handleAddAdGuardRule(inputDomain, selectType, btnAdd, cardEl);
+        });
+
+        inputDomain.addEventListener('keypress', function(ev) {
+            if (ev.key === 'Enter') {
+                ev.preventDefault();
+                self.handleAddAdGuardRule(inputDomain, selectType, btnAdd, cardEl);
+            }
+        });
+
+        var formBox = E('div', {
+            'style': 'padding:16px 20px;border-bottom:1px solid var(--gn-card-border);background:rgba(255,255,255,0.015);display:flex;gap:10px;align-items:center;flex-wrap:wrap;'
+        }, [
+            inputDomain,
+            selectType,
+            btnAdd
+        ]);
+
+        var tipBox = E('div', { 'style': 'padding:10px 20px;font-size:11.5px;color:var(--gn-text-muted);border-bottom:1px solid var(--gn-card-border);background:rgba(255,255,255,0.01);display:flex;align-items:center;gap:8px;' }, [
+            E('span', {}, '💡'),
+            E('span', {}, _('Tip: Whitelists (@@||domain^) bypass all AdGuard filters (useful for games like BGMI, banking, or streaming). Blacklists (||domain^) block matching requests.'))
+        ]);
+
+        // Rules List / Table
+        var rulesContainer = E('div', { 'style': 'padding:0;' });
+
+        if (totalRules === 0) {
+            rulesContainer.appendChild(E('div', { 'style': 'padding:36px 20px;text-align:center;color:var(--gn-text-muted);' }, [
+                E('div', { 'style': 'font-size:24px;margin-bottom:8px;' }, '🛡️'),
+                E('div', { 'style': 'font-weight:600;color:var(--gn-text-main);' }, _('No Custom Filtering Rules Yet')),
+                E('div', { 'style': 'font-size:12px;margin-top:4px;' }, _('Add domains above to whitelist or block them across your network.'))
+            ]));
+        } else {
+            var ruleTable = E('table', { 'class': 'gn-table', 'style': 'margin:0;' }, [
+                E('thead', {}, [
+                    E('tr', {}, [
+                        E('th', { 'style': 'width:120px;' }, _('Type')),
+                        E('th', {}, _('Rule Syntax / Domain')),
+                        E('th', { 'style': 'width:120px;text-align:right;' }, _('Actions'))
+                    ])
+                ]),
+                E('tbody', {}, rules.map(function(r) {
+                    var isWhite = (r.indexOf('@@') === 0);
+                    var isBlack = (!isWhite && r.indexOf('||') === 0);
+                    var badgeClass = isWhite ? 'gn-pill-success' : (isBlack ? 'gn-pill-danger' : 'gn-pill-accent');
+                    var badgeLabel = isWhite ? _('ALLOW') : (isBlack ? _('BLOCK') : _('CUSTOM'));
+
+                    return E('tr', {}, [
+                        E('td', {}, [
+                            E('span', { 'class': 'gn-pill ' + badgeClass, 'style': 'font-size:10px;padding:2px 7px;font-weight:700;' }, badgeLabel)
+                        ]),
+                        E('td', {}, [
+                            E('code', { 'class': 'gn-code', 'style': 'font-size:12px;font-weight:600;word-break:break-all;' }, r)
+                        ]),
+                        E('td', { 'style': 'text-align:right;' }, [
+                            E('div', { 'style': 'display:inline-flex;gap:6px;align-items:center;' }, [
+                                E('button', {
+                                    'class': 'gn-btn gn-btn-sec',
+                                    'style': 'padding:2px 6px;line-height:1;border-radius:4px;',
+                                    'title': _('Copy rule'),
+                                    'click': function(ev) {
+                                        ev.stopPropagation();
+                                        if (navigator.clipboard) {
+                                            navigator.clipboard.writeText(r);
+                                            ui.addNotification(null, E('p', {}, _('Copied rule: ') + r), 2000);
+                                        }
+                                    }
+                                }, svgIcon('copy', 11)),
+                                E('button', {
+                                    'class': 'gn-btn gn-btn-danger-outline',
+                                    'style': 'padding:2px 7px;font-size:11px;line-height:1.2;border-radius:4px;',
+                                    'title': _('Delete rule from AdGuard Home'),
+                                    'click': function(ev) {
+                                        ev.stopPropagation();
+                                        self.handleDeleteAdGuardRule(r, ev.currentTarget, cardEl);
+                                    }
+                                }, '🗑️ ' + _('Remove'))
+                            ])
+                        ])
+                    ]);
+                }))
+            ]);
+            rulesContainer.appendChild(ruleTable);
+        }
+
+        cardEl.appendChild(header);
+        cardEl.appendChild(formBox);
+        cardEl.appendChild(tipBox);
+        cardEl.appendChild(rulesContainer);
+    },
+
+    handleAddAdGuardRule: function(inputEl, selectEl, btnEl, cardEl) {
+        var self = this;
+        var val = (inputEl.value || '').trim();
+        if (!val) {
+            ui.addNotification(null, E('p', {}, _('Please enter a domain or rule syntax.')), 3000);
+            inputEl.focus();
+            return;
+        }
+
+        var rType = selectEl.value || 'whitelist';
+        btnEl.disabled = true;
+        btnEl.innerHTML = '<span>⏳</span> ' + _('Adding...');
+
+        fs.exec(ACTION_SCRIPT, ['adguard_add_rule', val, rType]).then(function(res) {
+            var raw = res && res.stdout ? res.stdout.trim() : '';
+            var json = safeJson(raw, {});
+            if (json && json.result === 'ok') {
+                inputEl.value = '';
+                ui.addNotification(null, E('p', {}, _('Rule successfully applied in AdGuard Home: ') + (json.rule || val)), 3500);
+                return fs.exec(ACTION_SCRIPT, ['adguard_rules']).then(function(rRes) {
+                    if (rRes && rRes.stdout) {
+                        var rJson = safeJson(rRes.stdout, {});
+                        if (rJson && rJson.rules) self.adguardRules = rJson.rules;
+                    }
+                    self.renderAdGuardRulesCard(cardEl);
+                });
+            } else {
+                ui.addNotification(null, E('p', {}, _('Failed to add rule: ') + (json.error || raw)), 4000);
+            }
+        }).catch(function(err) {
+            ui.addNotification(null, E('p', {}, _('Error adding rule: ') + (err.message || err)), 4000);
+        }).finally(function() {
+            btnEl.disabled = false;
+            btnEl.innerHTML = '';
+            btnEl.appendChild(svgIcon('plus', 13));
+            btnEl.appendChild(document.createTextNode(' ' + _('Add Rule')));
+        });
+    },
+
+    handleDeleteAdGuardRule: function(ruleText, btnEl, cardEl) {
+        var self = this;
+        if (!ruleText) return;
+
+        btnEl.disabled = true;
+        btnEl.innerHTML = '<span>⏳</span>';
+
+        fs.exec(ACTION_SCRIPT, ['adguard_delete_rule', ruleText]).then(function(res) {
+            var raw = res && res.stdout ? res.stdout.trim() : '';
+            var json = safeJson(raw, {});
+            if (json && json.result === 'ok') {
+                ui.addNotification(null, E('p', {}, _('Rule removed from AdGuard Home: ') + ruleText), 3000);
+                return fs.exec(ACTION_SCRIPT, ['adguard_rules']).then(function(rRes) {
+                    if (rRes && rRes.stdout) {
+                        var rJson = safeJson(rRes.stdout, {});
+                        if (rJson && rJson.rules) self.adguardRules = rJson.rules;
+                    }
+                    self.renderAdGuardRulesCard(cardEl);
+                });
+            } else {
+                ui.addNotification(null, E('p', {}, _('Failed to remove rule: ') + (json.error || raw)), 4000);
+            }
+        }).catch(function(err) {
+            ui.addNotification(null, E('p', {}, _('Error removing rule: ') + (err.message || err)), 4000);
+        });
+    },
+
+    // =========================================================================
+    // PER-DEVICE APP & SERVICE BLOCKER MODAL
+    // =========================================================================
+    handleManageBlockedServices: function(client) {
+        var self = this;
+        var rawHost = (client.hostname && client.hostname !== '*' && client.hostname !== 'Unknown') ? client.hostname : '';
+        var displayName = client.custom_name ? client.custom_name.trim() : (rawHost || client.ip);
+
+        // Pre-selected services for this client
+        var currentBlocked = Array.isArray(client.blocked_services) ? client.blocked_services.slice() : [];
+        var selectedMap = {};
+        currentBlocked.forEach(function(s) { selectedMap[s] = true; });
+
+        // Popular curated services with icons and clean names
+        var curatedServices = [
+            // Video & Streaming
+            { id: 'youtube', name: 'YouTube', category: 'video', icon: '▶️' },
+            { id: 'netflix', name: 'Netflix', category: 'video', icon: '🎬' },
+            { id: 'twitch', name: 'Twitch', category: 'video', icon: '📺' },
+            { id: 'disneyplus', name: 'Disney+', category: 'video', icon: '✨' },
+            { id: 'amazon_streaming', name: 'Prime Video', category: 'video', icon: '📦' },
+            { id: 'spotify', name: 'Spotify', category: 'video', icon: '🎵' },
+
+            // Social & Messaging
+            { id: 'tiktok', name: 'TikTok', category: 'social', icon: '📱' },
+            { id: 'instagram', name: 'Instagram', category: 'social', icon: '📷' },
+            { id: 'facebook', name: 'Facebook', category: 'social', icon: '👥' },
+            { id: 'twitter', name: 'X / Twitter', category: 'social', icon: '🐦' },
+            { id: 'discord', name: 'Discord', category: 'social', icon: '💬' },
+            { id: 'whatsapp', name: 'WhatsApp', category: 'social', icon: '🟢' },
+            { id: 'telegram', name: 'Telegram', category: 'social', icon: '✈️' },
+            { id: 'reddit', name: 'Reddit', category: 'social', icon: '🤖' },
+            { id: 'snapchat', name: 'Snapchat', category: 'social', icon: '👻' },
+            { id: 'pinterest', name: 'Pinterest', category: 'social', icon: '📌' },
+
+            // Gaming
+            { id: 'roblox', name: 'Roblox', category: 'gaming', icon: '🧱' },
+            { id: 'steam', name: 'Steam', category: 'gaming', icon: '🎮' },
+            { id: 'epic_games', name: 'Epic Games', category: 'gaming', icon: '⚡' },
+            { id: 'activision_blizzard', name: 'Activision / Blizzard', category: 'gaming', icon: '⚔️' },
+            { id: 'battle_net', name: 'Battle.net', category: 'gaming', icon: '🛡️' },
+
+            // Dating & Adult
+            { id: 'tinder', name: 'Tinder', category: 'adult', icon: '🔥' },
+            { id: 'onlyfans', name: 'OnlyFans', category: 'adult', icon: '🔞' },
+            { id: 'bigo_live', name: 'Bigo Live', category: 'adult', icon: '📹' }
+        ];
+
+        // Also add any active service on client that might not be in curated list
+        var curatedIds = {};
+        curatedServices.forEach(function(cs) { curatedIds[cs.id] = true; });
+
+        (self.adguardServices || []).forEach(function(agS) {
+            if (!curatedIds[agS.id] && selectedMap[agS.id]) {
+                curatedServices.push({ id: agS.id, name: agS.name, category: 'all', icon: '🔒' });
+                curatedIds[agS.id] = true;
+            }
+        });
+
+        var activeCat = 'all';
+        var searchTerm = '';
+
+        var searchInput = E('input', {
+            'type': 'text',
+            'class': 'cbi-input-text gn-input',
+            'placeholder': _('Filter platforms (e.g. YouTube, TikTok, Roblox)...'),
+            'style': 'width:100%;box-sizing:border-box;'
+        });
+
+        var counterPill = E('span', { 'class': 'gn-badge gn-badge-accent', 'style': 'font-size:12px;' });
+        function updateCounter() {
+            var count = Object.keys(selectedMap).filter(function(k) { return selectedMap[k]; }).length;
+            counterPill.textContent = count + ' ' + _('apps selected to block');
+        }
+        updateCounter();
+
+        var gridContainer = E('div', {
+            'style': 'display:grid;grid-template-columns:repeat(auto-fill, minmax(170px, 1fr));gap:10px;max-height:340px;overflow-y:auto;padding:8px 2px;margin-top:12px;'
+        });
+
+        function renderGrid() {
+            gridContainer.innerHTML = '';
+            var term = (searchTerm || '').toLowerCase();
+
+            // Merge curated services with matching full AdGuard services if search term is active
+            var pool = curatedServices.slice();
+            if (term && self.adguardServices) {
+                self.adguardServices.forEach(function(as) {
+                    if (!curatedIds[as.id] && as.name.toLowerCase().indexOf(term) !== -1) {
+                        pool.push({ id: as.id, name: as.name, category: 'all', icon: '🔒' });
+                    }
+                });
+            }
+
+            var visibleList = pool.filter(function(s) {
+                if (activeCat !== 'all' && s.category !== activeCat && s.category !== 'all') return false;
+                if (term && s.name.toLowerCase().indexOf(term) === -1 && s.id.toLowerCase().indexOf(term) === -1) return false;
+                return true;
+            });
+
+            if (visibleList.length === 0) {
+                gridContainer.appendChild(E('div', { 'style': 'grid-column:1/-1;text-align:center;padding:28px 10px;color:var(--gn-text-muted);' }, [
+                    E('div', {}, '🔍 ' + _('No matching services found.'))
+                ]));
+                return;
+            }
+
+            visibleList.forEach(function(s) {
+                var isChecked = Boolean(selectedMap[s.id]);
+                var card = E('div', {
+                    'class': 'gn-card',
+                    'style': 'padding:10px 12px;cursor:pointer;display:flex;align-items:center;gap:10px;border-radius:9px;transition:all 0.15s ease;' +
+                             (isChecked ? 'border:1px solid #6366f1;background:rgba(99,102,241,0.12);' : 'border:1px solid var(--gn-card-border);background:var(--gn-card-bg);')
+                }, [
+                    E('span', { 'style': 'font-size:16px;flex-shrink:0;' }, s.icon),
+                    E('div', { 'style': 'flex:1;min-width:0;' }, [
+                        E('div', { 'style': 'font-size:12.5px;font-weight:700;color:var(--gn-text-main);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;' }, s.name),
+                        E('div', { 'style': 'font-size:10px;color:var(--gn-text-muted);' }, isChecked ? _('Blocked') : _('Allowed'))
+                    ]),
+                    E('input', {
+                        'type': 'checkbox',
+                        'checked': isChecked ? '' : null,
+                        'style': 'width:16px;height:16px;cursor:pointer;accent-color:#6366f1;pointer-events:none;'
+                    })
+                ]);
+
+                card.addEventListener('click', function(ev) {
+                    ev.preventDefault();
+                    selectedMap[s.id] = !selectedMap[s.id];
+                    if (!selectedMap[s.id]) delete selectedMap[s.id];
+                    updateCounter();
+                    renderGrid();
+                });
+
+                gridContainer.appendChild(card);
+            });
+        }
+
+        searchInput.addEventListener('input', function(ev) {
+            searchTerm = ev.target.value.trim();
+            renderGrid();
+        });
+
+        // Filter pills for categories
+        var catTabs = [
+            { id: 'all', label: _('All') },
+            { id: 'social', label: '💬 ' + _('Social') },
+            { id: 'video', label: '🎬 ' + _('Video') },
+            { id: 'gaming', label: '🎮 ' + _('Gaming') },
+            { id: 'adult', label: '🔞 ' + _('Adult') }
+        ];
+
+        var catPillsBox = E('div', { 'style': 'display:flex;gap:6px;flex-wrap:wrap;margin-top:10px;' }, catTabs.map(function(ct) {
+            var btn = E('button', {
+                'class': 'gn-btn ' + (activeCat === ct.id ? 'gn-btn-primary' : 'gn-btn-sec') + ' gn-btn-sm',
+                'style': 'font-size:11px;padding:3px 10px;',
+                'click': function() {
+                    activeCat = ct.id;
+                    Array.from(catPillsBox.children).forEach(function(b) {
+                        b.className = 'gn-btn gn-btn-sec gn-btn-sm';
+                        b.style.fontSize = '11px';
+                        b.style.padding = '3px 10px';
+                    });
+                    btn.className = 'gn-btn gn-btn-primary gn-btn-sm';
+                    renderGrid();
+                }
+            }, ct.label);
+            return btn;
+        }));
+
+        renderGrid();
+
+        // Footer Action Buttons
+        var btnSelectAll = E('button', {
+            'class': 'gn-btn gn-btn-sec gn-btn-sm',
+            'style': 'font-size:11px;',
+            'click': function() {
+                curatedServices.forEach(function(s) { selectedMap[s.id] = true; });
+                updateCounter();
+                renderGrid();
+            }
+        }, _('Select Curated'));
+
+        var btnClearAll = E('button', {
+            'class': 'gn-btn gn-btn-sec gn-btn-sm',
+            'style': 'font-size:11px;',
+            'click': function() {
+                selectedMap = {};
+                updateCounter();
+                renderGrid();
+            }
+        }, _('Clear All'));
+
+        var btnSave = E('button', {
+            'class': 'gn-btn gn-btn-primary gn-btn-sm',
+            'style': 'display:inline-flex;align-items:center;gap:6px;'
+        }, [
+            svgIcon('shield', 13),
+            E('span', {}, _('Save & Enforce'))
+        ]);
+
+        btnSave.addEventListener('click', function() {
+            var finalServices = Object.keys(selectedMap).filter(function(k) { return selectedMap[k]; });
+            btnSave.disabled = true;
+            btnSave.innerHTML = '<span>⏳</span> ' + _('Enforcing in AdGuard...');
+
+            fs.exec(ACTION_SCRIPT, [
+                'adguard_set_client_services',
+                client.ip,
+                client.mac || '',
+                displayName,
+                JSON.stringify(finalServices)
+            ]).then(function(res) {
+                var raw = res && res.stdout ? res.stdout.trim() : '';
+                var json = safeJson(raw, {});
+                if (json && json.result === 'ok') {
+                    client.blocked_services = finalServices;
+                    ui.hideModal();
+                    var msg = finalServices.length > 0 ?
+                        (_('Successfully enforced ') + finalServices.length + _(' blocked apps for ') + displayName) :
+                        (_('All app restrictions cleared for ') + displayName);
+                    ui.addNotification(null, E('p', {}, msg), 3500);
+
+                    var pane = document.getElementById('gn-pane-clients');
+                    if (pane) self.renderClientsPane(pane);
+                } else {
+                    ui.addNotification(null, E('p', {}, _('Failed to update blocked apps: ') + (json.error || raw)), 4000);
+                    btnSave.disabled = false;
+                    btnSave.innerHTML = '<span>🛡️</span> ' + _('Save & Enforce');
+                }
+            }).catch(function(err) {
+                ui.addNotification(null, E('p', {}, _('Error updating blocked apps: ') + (err.message || err)), 4000);
+                btnSave.disabled = false;
+                btnSave.innerHTML = '<span>🛡️</span> ' + _('Save & Enforce');
+            });
+        });
+
+        ui.showModal(_('🛡️ Block Apps & Services') + ' — ' + displayName, [
+            E('div', { 'style': 'margin-bottom:12px;font-size:12.5px;color:var(--gn-text-muted);' }, [
+                E('div', {}, _('Select which platforms to restrict specifically for this device. Any DNS requests to blocked apps will be dropped by AdGuard Home.')),
+                E('div', { 'style': 'margin-top:8px;display:flex;gap:12px;font-size:11px;flex-wrap:wrap;' }, [
+                    E('span', {}, _('IP: ') + E('strong', {}, client.ip)),
+                    E('span', {}, _('MAC: ') + E('code', { 'class': 'gn-code' }, (client.mac || '').toUpperCase())),
+                    rawHost ? E('span', {}, _('Host: ') + E('strong', {}, rawHost)) : null
+                ])
+            ]),
+            searchInput,
+            catPillsBox,
+            E('div', { 'style': 'display:flex;justify-content:space-between;align-items:center;margin-top:12px;padding:0 2px;' }, [
+                counterPill,
+                E('div', { 'style': 'display:flex;gap:6px;' }, [btnSelectAll, btnClearAll])
+            ]),
+            gridContainer,
+            E('div', { 'style': 'margin-top:18px;display:flex;gap:8px;justify-content:flex-end;align-items:center;border-top:1px solid var(--gn-card-border);padding-top:14px;' }, [
+                E('button', {
+                    'class': 'gn-btn gn-btn-sec gn-btn-sm',
+                    'click': ui.hideModal
+                }, _('Cancel')),
+                btnSave
+            ])
+        ]);
     },
 
     // TAB 5: SETTINGS RENDERER
@@ -1528,7 +2033,16 @@ return view.extend({
                         }
                     }, '+ ' + _('Reserve IP')),
                     E('code', { 'class': 'gn-code gn-code-mac', 'style': 'font-size:11px;' }, (c.mac || '').toUpperCase()),
-                    (hasAlias && rawHostname) ? E('span', { 'style': 'color:var(--gn-text-dim);' }, '(' + rawHostname + ')') : null
+                    (hasAlias && rawHostname) ? E('span', { 'style': 'color:var(--gn-text-dim);' }, '(' + rawHostname + ')') : null,
+                    (c.blocked_services && c.blocked_services.length > 0) ? E('span', {
+                        'class': 'gn-pill gn-pill-warning gn-pill-xs',
+                        'style': 'cursor:pointer;font-size:10px;padding:1px 6px;',
+                        'title': _('Click to view & edit blocked apps for this device'),
+                        'click': function(ev) {
+                            ev.stopPropagation();
+                            self.handleManageBlockedServices(c);
+                        }
+                    }, '🛡️ ' + c.blocked_services.length + ' ' + _('Blocked')) : null
                 ]);
 
                 var deviceCol = E('div', { 'style': 'display:flex;align-items:center;gap:12px;' }, [
@@ -1627,6 +2141,22 @@ return view.extend({
                     }, [
                         E('span', {}, '⏸ ' + _('Pause'))
                     ]),
+
+                    (function() {
+                        var bCount = (c.blocked_services && c.blocked_services.length) ? c.blocked_services.length : 0;
+                        return E('button', {
+                            'class': 'gn-btn ' + (bCount > 0 ? 'gn-btn-warning' : 'gn-btn-sec') + ' gn-btn-sm',
+                            'style': 'padding:4px 9px;font-size:12px;display:inline-flex;align-items:center;gap:5px;',
+                            'title': bCount > 0 ? (_('Blocked Apps: ') + c.blocked_services.join(', ')) : _('Block apps & services for this device in AdGuard Home'),
+                            'click': function(ev) {
+                                ev.stopPropagation();
+                                self.handleManageBlockedServices(c);
+                            }
+                        }, [
+                            svgIcon('shield', 12, bCount > 0 ? '#f59e0b' : '#6366f1'),
+                            E('span', {}, bCount > 0 ? (bCount + ' ' + _('Apps')) : _('Block Apps'))
+                        ]);
+                    })(),
 
                     E('a', {
                         'href': clientDnsUrl,
@@ -1881,7 +2411,7 @@ return view.extend({
                 E('div', {}, [
                     E('div', { 'style': 'display:flex;align-items:center;gap:8px;' }, [
                         E('h1', { 'class': 'gn-title' }, 'Guardian Onyx'),
-                        E('span', { 'class': 'gn-badge gn-badge-accent', 'style': 'font-size:11px;padding:2px 8px;' }, 'v1.2.1')
+                        E('span', { 'class': 'gn-badge gn-badge-accent', 'style': 'font-size:11px;padding:2px 8px;' }, 'v1.3.1')
                     ]),
                     E('p', { 'class': 'gn-subtitle' }, _('OpenWrt Unified Security, AdGuard Home & Firewall Monitoring'))
                 ])
