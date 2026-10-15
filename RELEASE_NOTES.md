@@ -1,4 +1,4 @@
-# Release v1.4.1
+# Release v1.4.2
 
 ## Guardian Onyx Security Suite for OpenWrt
 
@@ -6,36 +6,25 @@ Unified Security, AdGuard Home DNS Filtering & Firewall Dashboard for OpenWrt & 
 
 ---
 
-### What's New in v1.4.1:
+### What's New in v1.4.2:
 
-#### 🚀 GitHub Update Detection & 1-Click LuCI Updater
-- **Automated Update Detection**: Periodically or manually checks GitHub Releases for new package builds.
-- **Top Header & Settings Access**: Quick-access `🔄 Check Update` button in the header alongside version badge and dedicated updates card in Settings.
-- **1-Click LuCI In-App Update**: Downloads release APK, runs `apk add --allow-untrusted`, clears LuCI cache, and reloads services automatically.
-- **Copyable SSH Terminal Command**: Generates complete `wget` + `apk add` commands with 1-click clipboard copy for manual SSH terminal execution.
-- **Resilient Fallback**: Uses router backend `curl` with automatic browser-side `fetch()` fallback if router internet access is restricted.
+#### 🐛 Bug Fix: Clean Offline State & Fresh Install Initialization
+- **Fixed `TypeError: can't access property "length", self.adguardFilters is undefined`**: Resolved an issue that crashed the LuCI dashboard on routers where AdGuard Home was not yet installed, offline, or awaiting credentials configuration.
+- **Robust Fallback Data Parser**: Ensures all dashboard tabs (Connected Clients, Firewall Hardening, Conntrack Sessions Inspector, and Settings) load and render seamlessly even if backend AdGuard Home services are temporarily offline or unreachable.
+- **Rules & Services Pre-loader**: Properly initialises initial rule sets and service blocking definitions at startup.
 
-#### 🛡️ Router Perimeter Hardening Shields (Firewall Tab)
-- **1-Click Kernel Hardening Toggles**: Active controls for OpenWrt `fw4` / `nftables` defense systems.
-- **SYN Flood Protection**: Guards router against DoS connection starvation attacks using SYN cookies.
-- **Drop Invalid Packets**: Discards malformed TCP/UDP packets and out-of-order sequence attacks at the PREROUTING phase.
-- **WAN Ping Stealth Mode**: Drops unsolicited ICMP echo requests from the internet to make router invisible to automated port scans.
-- **TCP MSS Clamping (`mtu_fix`)**: Automatically clamps maximum segment size to prevent packet fragmentation over PPPoE / WAN.
-- **Full-Cone NAT**: Lowers NAT filtering barriers for gaming and peer-to-peer applications.
-- **Built-in Educational Guides**: Embedded help tooltips explaining what each hardening option does and when to use it.
+---
 
-#### ⚡ Live Conntrack Sessions Inspector (Firewall Tab)
-- **Real-Time Active Connection Telemetry**: Direct streaming from kernel `/proc/net/nf_conntrack`.
-- **Client Identity Resolution**: Translates raw internal IPs to friendly device names and MAC addresses.
-- **Well-Known Port Hints**: Automatic detection of protocol services (`:443 HTTPS`, `:80 HTTP`, `:53 DNS`, `:22 SSH`, etc.).
-- **Live Search & Protocol Filters**: Instantly filter sockets by protocol (All, TCP, UDP, ICMP), state (Established), or External WAN only.
-- **Session Quota & Bandwidth Counters**: Displays live packet count and total byte volume per session.
+### Previous Highlights from v1.4.1:
+- **🚀 GitHub Update Detection & 1-Click LuCI Updater**: Real-time update check in header and settings with 1-click update and copyable terminal command.
+- **🛡️ Router Perimeter Hardening Shields**: 1-click toggles for SYN Flood protection, Drop Invalid packets, Stealth Mode, and TCP MSS Clamping.
+- **⚡ Live Conntrack Sessions Inspector**: Real-time socket connections with friendly client identity mapping.
 
 ---
 
 ### Installation (APK for OpenWrt 24.10+ / ImmortalWrt 25.x):
 ```sh
 # Download and install the package
-wget -O /tmp/luci-app-guardian-onyx-1.4.1.apk https://github.com/MrManiesh/luci-app-guardian-onyx/releases/download/v1.4.1/luci-app-guardian-onyx-1.4.1.apk
-apk add --allow-untrusted /tmp/luci-app-guardian-onyx-1.4.1.apk
+wget -O /tmp/luci-app-guardian-onyx-1.4.2.apk https://github.com/MrManiesh/luci-app-guardian-onyx/releases/download/v1.4.2/luci-app-guardian-onyx-1.4.2.apk
+apk add --allow-untrusted /tmp/luci-app-guardian-onyx-1.4.2.apk
 ```

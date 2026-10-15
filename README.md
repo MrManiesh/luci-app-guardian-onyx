@@ -131,11 +131,11 @@ apk update && apk add curl ca-bundle jq
 Download and install the official package directly on your router via SSH:
 
 ```sh
-# Download the latest v1.4.1 release
-wget -O /tmp/luci-app-guardian-onyx-1.4.1.apk https://github.com/MrManiesh/luci-app-guardian-onyx/releases/download/v1.4.1/luci-app-guardian-onyx-1.4.1.apk
+# Download the latest v1.4.2 release
+wget -O /tmp/luci-app-guardian-onyx-1.4.2.apk https://github.com/MrManiesh/luci-app-guardian-onyx/releases/download/v1.4.2/luci-app-guardian-onyx-1.4.2.apk
 
 # Install the package
-apk add --allow-untrusted /tmp/luci-app-guardian-onyx-1.4.1.apk
+apk add --allow-untrusted /tmp/luci-app-guardian-onyx-1.4.2.apk
 ```
 
 ### 3. Access Guardian Onyx

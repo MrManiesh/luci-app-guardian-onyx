@@ -11,7 +11,7 @@
 'require uci';
 
 var ACTION_SCRIPT = '/usr/libexec/guardian-action.sh';
-var GUARDIAN_VERSION = '1.4.1';
+var GUARDIAN_VERSION = '1.4.2';
 var REPO_URL = 'https://github.com/MrManiesh/luci-app-guardian-onyx';
 
 // Helper: Safely parse JSON strings
@@ -2995,6 +2995,13 @@ return view.extend({
         if (data[4]) self.conntrackCount = parseInt(data[4].trim(), 10) || 0;
         self.uciGuardian = data[5] || {};
         self.uciFirewall = data[6] || {};
+        if (data[7] && data[7].stdout) {
+            var rData = safeJson(data[7].stdout, {});
+            self.adguardRules = (rData && rData.rules) ? rData.rules : [];
+        }
+        if (data[8] && data[8].stdout) {
+            self.adguardServices = safeJson(data[8].stdout, []);
+        }
         if (data[9] && data[9].stdout) self.firewallHardening = safeJson(data[9].stdout, {});
         if (data[10] && data[10].stdout) {
             var ctInit = safeJson(data[10].stdout, {});
@@ -3004,9 +3011,14 @@ return view.extend({
         // Merge direct stats into statusData if statusData.adguard is empty or missing stats
         if (!self.statusData || !self.statusData.adguard) {
             self.statusData = self.statusData || {};
-            self.statusData.adguard = self.statusData.adguard || {
-                status: (self.adguardFilters.length > 0 || self.adguardLog.length > 0) ? 'online' : 'offline',
-                stats: self.adguardStatsDirect
+            var hasDirectStats = self.adguardStatsDirect && (self.adguardStatsDirect.num_dns_queries !== undefined || self.adguardStatsDirect.running);
+            self.statusData.adguard = {
+                status: hasDirectStats ? 'online' : 'offline',
+                protection_enabled: true,
+                version: 'N/A',
+                host: (self.uciGuardian && self.uciGuardian.main && self.uciGuardian.main.adguard_host) || '127.0.0.1',
+                port: (self.uciGuardian && self.uciGuardian.main && self.uciGuardian.main.adguard_port) || 8080,
+                stats: self.adguardStatsDirect || {}
             };
         } else if (!self.statusData.adguard.stats || !self.statusData.adguard.stats.num_dns_queries) {
             if (self.adguardStatsDirect && self.adguardStatsDirect.num_dns_queries) {
